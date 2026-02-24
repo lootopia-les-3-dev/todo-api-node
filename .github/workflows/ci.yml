@@ -19,7 +19,14 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-lint
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-lint.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Lint
         run: pnpm exec eslint .
@@ -33,7 +40,14 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-test
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-test.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Cache Jest
         uses: actions/cache@v5
@@ -61,7 +75,14 @@ jobs:
         with:
           node-version: 20
           cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-perf
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-perf.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Cache k6 binary
         id: cache-k6
@@ -81,7 +102,11 @@ jobs:
           NODE_ENV: production
           DB_PATH: ./perf-test.db
       - name: Wait for server
-        run: npx wait-on http://localhost:3000/health --timeout 15000
+        run: |
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:3000/health && break
+            sleep 1
+          done
       - name: Run k6 load tests
         run: k6 run tests/load.js
 
@@ -120,12 +145,26 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.sonar/cache
-          key: sonar-${{ runner.os }}
+          key: sonar-${{ runner.os }}-${{ hashFiles('sonar-project.properties') }}
+          restore-keys: sonar-${{ runner.os }}-
+      - name: Cache sonar-scanner binary
+        id: cache-sonar-bin
+        uses: actions/cache@v5
+        with:
+          path: ~/.sonar/sonar-scanner
+          key: sonar-scanner-bin-6.2
+      - name: Install sonar-scanner
+        if: steps.cache-sonar-bin.outputs.cache-hit != 'true'
+        run: |
+          curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+          unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
+          mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 ~/.sonar/sonar-scanner
+          rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        run: ~/.sonar/sonar-scanner/bin/sonar-scanner
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: https://sonarcloud.io
 
   docker:
     runs-on: [self-hosted, dokploy-runner]
