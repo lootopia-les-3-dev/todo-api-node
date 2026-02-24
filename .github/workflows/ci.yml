@@ -18,8 +18,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-lint
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-lint.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Lint
         run: pnpm exec eslint .
@@ -32,8 +38,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-test
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-test.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Cache Jest
         uses: actions/cache@v4
@@ -60,8 +72,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: pnpm
+      - name: Cache node_modules
+        id: cache-nm-perf
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
       - name: Install dependencies
+        if: steps.cache-nm-perf.outputs.cache-hit != 'true'
         run: pnpm install --frozen-lockfile
       - name: Cache k6 binary
         id: cache-k6
