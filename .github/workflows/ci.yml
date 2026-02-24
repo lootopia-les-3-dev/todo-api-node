@@ -8,11 +8,12 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PNPM_STORE: /tmp/runner-cache/pnpm-store
   NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
   DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
   K6_BIN: /tmp/runner-cache/k6
   SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
+  TRIVY_CACHE: /tmp/runner-cache/trivy
+  RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
 
 jobs:
   lint:
@@ -143,18 +144,14 @@ jobs:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
-      - name: Cache Trivy DB
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
-          restore-keys: trivy-db-
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+        env:
+          TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
   sonarcloud:
     name: SonarCloud Quality Gate
