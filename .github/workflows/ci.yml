@@ -11,7 +11,6 @@ env:
   PNPM_STORE: /tmp/runner-cache/pnpm-store
   NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
   DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
-  K6_BIN: /tmp/runner-cache/k6
   SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
 
 jobs:
@@ -116,14 +115,6 @@ jobs:
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
-      - name: Install k6
-        run: |
-          if [ ! -f "$K6_BIN" ]; then
-            mkdir -p "$(dirname $K6_BIN)"
-            curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
-            mv k6 "$K6_BIN"
-          fi
-          sudo ln -sf "$K6_BIN" /usr/local/bin/k6
       - name: Start server
         run: node app.js &
         env:
@@ -137,7 +128,9 @@ jobs:
             sleep 1
           done
       - name: Run k6 load tests
-        run: k6 run tests/load.js
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: tests/load.js
 
   security:
     runs-on: [self-hosted, dokploy-runner]
