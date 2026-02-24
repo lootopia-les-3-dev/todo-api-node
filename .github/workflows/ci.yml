@@ -8,6 +8,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PNPM_STORE: /tmp/runner-cache/pnpm-store
+  NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
+  DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
+  K6_BIN: /tmp/runner-cache/k6
+  SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
 
 jobs:
   lint:
@@ -18,16 +23,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-lint
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore node_modules from shared cache
+        run: |
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
+            cp -al "$NODE_MODULES_CACHE/$KEY" node_modules
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          fi
+        id: nm-cache
       - name: Install dependencies
-        if: steps.cache-nm-lint.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --prefer-offline
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        run: |
+          PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
+          mkdir -p "$NODE_MODULES_CACHE"
+          cp -al node_modules "$NODE_MODULES_CACHE/node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
       - name: Lint
         run: pnpm exec eslint .
 
@@ -39,22 +48,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-test
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+      - name: Restore node_modules from shared cache
+        run: |
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
+            cp -al "$NODE_MODULES_CACHE/$KEY" node_modules
+            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          fi
+        id: nm-cache
       - name: Install dependencies
-        if: steps.cache-nm-test.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Cache Jest
-        uses: actions/cache@v5
-        with:
-          path: node_modules/.cache/jest
-          key: jest-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: jest-${{ runner.os }}-
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        run: |
+          PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
+          mkdir -p "$NODE_MODULES_CACHE"
+          cp -al node_modules "$NODE_MODULES_CACHE/node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
       - name: Test and generate coverage
         run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
       - name: Upload coverage artifact
@@ -74,27 +81,22 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-perf
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-nm-perf.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile --prefer-offline
-      - name: Cache k6 binary
-        id: cache-k6
-        uses: actions/cache@v5
-        with:
-          path: /usr/local/bin/k6
-          key: k6-v0.55.0
-      - name: Install k6
-        if: steps.cache-k6.outputs.cache-hit != 'true'
+      - name: Restore node_modules from shared cache
         run: |
-          curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
-          sudo mv k6 /usr/local/bin/k6
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
+            cp -al "$NODE_MODULES_CACHE/$KEY" node_modules
+          else
+            PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
+          fi
+      - name: Install k6
+        run: |
+          if [ ! -f "$K6_BIN" ]; then
+            mkdir -p "$(dirname $K6_BIN)"
+            curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
+            mv k6 "$K6_BIN"
+          fi
+          sudo ln -sf "$K6_BIN" /usr/local/bin/k6
       - name: Start server
         run: node app.js &
         env:
@@ -140,27 +142,17 @@ jobs:
         with:
           name: coverage
           path: coverage
-      - name: Cache SonarCloud scanner
-        uses: actions/cache@v5
-        with:
-          path: ~/.sonar/cache
-          key: sonar-${{ runner.os }}-${{ hashFiles('sonar-project.properties') }}
-          restore-keys: sonar-${{ runner.os }}-
-      - name: Cache sonar-scanner binary
-        id: cache-sonar-bin
-        uses: actions/cache@v5
-        with:
-          path: ~/.sonar/sonar-scanner
-          key: sonar-scanner-bin-6.2
       - name: Install sonar-scanner
-        if: steps.cache-sonar-bin.outputs.cache-hit != 'true'
         run: |
-          curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
-          unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
-          mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 ~/.sonar/sonar-scanner
-          rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
+          if [ ! -f "$SONAR_SCANNER/bin/sonar-scanner" ]; then
+            mkdir -p "$(dirname $SONAR_SCANNER)"
+            curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+            unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
+            mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 "$SONAR_SCANNER"
+            rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
+          fi
       - name: SonarCloud Scan
-        run: ~/.sonar/sonar-scanner/bin/sonar-scanner
+        run: ${{ env.SONAR_SCANNER }}/bin/sonar-scanner
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
@@ -191,8 +183,8 @@ jobs:
           context: .
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
-          cache-from: type=local,src=/tmp/docker-buildcache
-          cache-to: type=local,dest=/tmp/docker-buildcache,mode=min
+          cache-from: type=local,src=${{ env.DOCKER_CACHE }}
+          cache-to: type=local,dest=${{ env.DOCKER_CACHE }},mode=min
           provenance: false
           sbom: false
 
