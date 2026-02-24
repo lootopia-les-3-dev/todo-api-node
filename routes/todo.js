@@ -62,12 +62,17 @@ const toArray = function(rows) {
  *       Effectue une recherche **insensible à la casse** sur le champ `title` avec une correspondance partielle (LIKE `%q%`).
  *
  *       Retourne un tableau vide si aucun résultat — jamais un 404.
+ *
+ *       **Exemples de recherche :**
+ *       - `?q=buy` → trouve "Buy groceries", "Buy milk"
+ *       - `?q=CALL` → trouve "Call the dentist" (insensible à la casse)
+ *       - `?q=zzz` → `[]` si aucun match
  *     operationId: searchTodos
  *     parameters:
  *       - in: query
  *         name: q
  *         required: true
- *         description: Terme recherché dans les titres (1–200 caractères)
+ *         description: Terme recherché dans les titres (1–200 caractères, insensible à la casse)
  *         schema:
  *           type: string
  *           minLength: 1
@@ -83,26 +88,46 @@ const toArray = function(rows) {
  *               items:
  *                 $ref: '#/components/schemas/Todo'
  *             examples:
- *               found:
- *                 summary: Résultats trouvés
+ *               plusieursResultats:
+ *                 summary: Plusieurs résultats trouvés
  *                 value:
  *                   - id: 1
  *                     title: Buy groceries
  *                     description: "Oat milk, eggs"
  *                     status: pending
- *               empty:
- *                 summary: Aucun résultat
+ *                   - id: 5
+ *                     title: Buy milk
+ *                     description: null
+ *                     status: done
+ *               unResultat:
+ *                 summary: Un seul résultat
+ *                 value:
+ *                   - id: 3
+ *                     title: Call the dentist
+ *                     description: Tuesday at 10am
+ *                     status: in-progress
+ *               aucunResultat:
+ *                 summary: Aucun résultat (terme introuvable)
  *                 value: []
  *       400:
- *         description: Paramètre `q` manquant ou invalide
+ *         description: Paramètre `q` manquant ou trop court/long
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ValidationError'
- *             example:
- *               detail:
- *                 - path: [q]
- *                   message: Required
+ *             examples:
+ *               manquant:
+ *                 summary: Paramètre q absent
+ *                 value:
+ *                   detail:
+ *                     - path: [q]
+ *                       message: Required
+ *               tropCourt:
+ *                 summary: Paramètre q vide
+ *                 value:
+ *                   detail:
+ *                     - path: [q]
+ *                       message: String must contain at least 1 character(s)
  */
 // GET /todos/search — must be before /:id to avoid route collision
 router.get("/search", async (req, res, next) => {
@@ -128,10 +153,10 @@ router.get("/search", async (req, res, next) => {
  *       - Todos
  *     summary: Créer un todo
  *     description: |
- *       Crée un nouveau todo et retourne l'objet persisté avec son `id` généré.
+ *       Crée un nouveau todo et retourne l'objet persisté avec son `id` généré automatiquement.
  *
- *       - `title` est le seul champ obligatoire.
- *       - `description` vaut `null` par défaut.
+ *       - `title` est le seul champ **obligatoire** (1–200 caractères).
+ *       - `description` vaut `null` par défaut (max 1000 caractères).
  *       - `status` vaut `pending` par défaut.
  *     operationId: createTodo
  *     requestBody:
@@ -143,18 +168,28 @@ router.get("/search", async (req, res, next) => {
  *             $ref: '#/components/schemas/CreateTodoBody'
  *           examples:
  *             minimal:
- *               summary: Titre uniquement
+ *               summary: Titre uniquement (cas minimal)
  *               value:
  *                 title: Read a book
- *             complet:
- *               summary: Tous les champs
+ *             avecDescription:
+ *               summary: Titre + description
+ *               value:
+ *                 title: Prepare sprint review
+ *                 description: Slides, demo environment, metrics from last sprint
+ *             avecStatut:
+ *               summary: Tâche déjà en cours
  *               value:
  *                 title: Refactor authentication module
  *                 description: Extract JWT logic into a dedicated service
  *                 status: in-progress
+ *             dejaDone:
+ *               summary: Tâche créée comme terminée
+ *               value:
+ *                 title: Write unit tests for database module
+ *                 status: done
  *     responses:
  *       201:
- *         description: Todo créé avec succès
+ *         description: Todo créé avec succès — retourne l'objet complet avec son `id`
  *         content:
  *           application/json:
  *             schema:
@@ -167,15 +202,45 @@ router.get("/search", async (req, res, next) => {
  *                   title: Read a book
  *                   description: null
  *                   status: pending
- *               complet:
- *                 summary: Créé depuis un payload complet
+ *               avecDescription:
+ *                 summary: Créé avec description
  *                 value:
  *                   id: 8
+ *                   title: Prepare sprint review
+ *                   description: Slides, demo environment, metrics from last sprint
+ *                   status: pending
+ *               enCours:
+ *                 summary: Créé en statut in-progress
+ *                 value:
+ *                   id: 9
  *                   title: Refactor authentication module
  *                   description: Extract JWT logic into a dedicated service
  *                   status: in-progress
  *       400:
- *         $ref: '#/components/responses/ValidationError'
+ *         description: Échec de validation — title manquant, trop long, ou status invalide
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *             examples:
+ *               titleManquant:
+ *                 summary: title absent du body
+ *                 value:
+ *                   detail:
+ *                     - path: [title]
+ *                       message: title is required
+ *               titleVide:
+ *                 summary: title vide
+ *                 value:
+ *                   detail:
+ *                     - path: [title]
+ *                       message: String must contain at least 1 character(s)
+ *               statutInvalide:
+ *                 summary: status non reconnu
+ *                 value:
+ *                   detail:
+ *                     - path: [status]
+ *                       message: "Invalid enum value. Expected 'pending' | 'in-progress' | 'done', received 'todo'"
  */
 // POST /todos
 router.post("/", async (req, res, next) => {
@@ -207,10 +272,13 @@ router.post("/", async (req, res, next) => {
  *     description: |
  *       Retourne un tableau paginé de tous les todos, triés par ordre d'insertion.
  *
- *       Utilisez `skip` et `limit` pour naviguer dans les données :
- *       - `skip=0&limit=10` → première page
- *       - `skip=10&limit=10` → deuxième page
- *       - Maximum **100** éléments par requête.
+ *       **Pagination :**
+ *       - `GET /todos` → page 1 (10 premiers)
+ *       - `GET /todos?skip=0&limit=5` → 5 premiers
+ *       - `GET /todos?skip=5&limit=5` → items 6 à 10
+ *       - `GET /todos?skip=20&limit=100` → au plus 100 items à partir du 21ème
+ *
+ *       Retourne `[]` si la base est vide ou si `skip` dépasse le nombre total.
  *     operationId: listTodos
  *     parameters:
  *       - in: query
@@ -232,7 +300,7 @@ router.post("/", async (req, res, next) => {
  *           example: 10
  *     responses:
  *       200:
- *         description: Liste paginée des todos (tableau vide si aucun)
+ *         description: Liste paginée des todos (tableau vide si aucun ou si offset dépasse le total)
  *         content:
  *           application/json:
  *             schema:
@@ -240,8 +308,8 @@ router.post("/", async (req, res, next) => {
  *               items:
  *                 $ref: '#/components/schemas/Todo'
  *             examples:
- *               avecItems:
- *                 summary: Liste avec deux todos
+ *               premierePage:
+ *                 summary: Première page — todos variés
  *                 value:
  *                   - id: 1
  *                     title: Buy groceries
@@ -249,13 +317,43 @@ router.post("/", async (req, res, next) => {
  *                     status: pending
  *                   - id: 2
  *                     title: Call the dentist
+ *                     description: Tuesday at 10am
+ *                     status: in-progress
+ *                   - id: 3
+ *                     title: Write unit tests
  *                     description: null
  *                     status: done
- *               vide:
- *                 summary: Liste vide
+ *               pageVide:
+ *                 summary: Offset dépasse le total — retourne []
+ *                 value: []
+ *               baseVide:
+ *                 summary: Aucun todo en base
  *                 value: []
  *       400:
- *         $ref: '#/components/responses/ValidationError'
+ *         description: Paramètres de pagination invalides
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *             examples:
+ *               limitTropEleve:
+ *                 summary: limit supérieur à 100
+ *                 value:
+ *                   detail:
+ *                     - path: [limit]
+ *                       message: Number must be less than or equal to 100
+ *               limitNegatif:
+ *                 summary: limit inférieur à 1
+ *                 value:
+ *                   detail:
+ *                     - path: [limit]
+ *                       message: Number must be greater than or equal to 1
+ *               skipNegatif:
+ *                 summary: skip négatif
+ *                 value:
+ *                   detail:
+ *                     - path: [skip]
+ *                       message: Number must be greater than or equal to 0
  */
 // GET /todos
 router.get("/", async (req, res, next) => {
@@ -280,7 +378,10 @@ router.get("/", async (req, res, next) => {
  *     tags:
  *       - Todos
  *     summary: Récupérer un todo par ID
- *     description: Retourne un todo unique par son ID numérique. Retourne 404 si l'ID n'existe pas.
+ *     description: |
+ *       Retourne un todo unique identifié par son `id` numérique.
+ *
+ *       Retourne **404** si aucun todo ne correspond à cet ID.
  *     operationId: getTodoById
  *     parameters:
  *       - $ref: '#/components/parameters/TodoId'
@@ -291,13 +392,36 @@ router.get("/", async (req, res, next) => {
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Todo'
- *             example:
- *               id: 42
- *               title: Buy groceries
- *               description: "Oat milk, eggs"
- *               status: pending
+ *             examples:
+ *               pending:
+ *                 summary: Todo en attente avec description
+ *                 value:
+ *                   id: 1
+ *                   title: Buy groceries
+ *                   description: "Oat milk, eggs, sourdough"
+ *                   status: pending
+ *               inProgress:
+ *                 summary: Todo en cours sans description
+ *                 value:
+ *                   id: 2
+ *                   title: Call the dentist
+ *                   description: null
+ *                   status: in-progress
+ *               done:
+ *                 summary: Todo terminé
+ *                 value:
+ *                   id: 3
+ *                   title: Write unit tests
+ *                   description: Covers database and error handler modules
+ *                   status: done
  *       404:
- *         $ref: '#/components/responses/NotFound'
+ *         description: Aucun todo trouvé avec cet ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               detail: Todo not found
  */
 // GET /todos/:id
 router.get("/:id", async (req, res, next) => {
@@ -321,11 +445,12 @@ router.get("/:id", async (req, res, next) => {
  *       - Todos
  *     summary: Mettre à jour un todo
  *     description: |
- *       Mise à jour partielle d'un todo existant. Seuls les champs fournis sont modifiés.
+ *       Mise à jour partielle d'un todo existant (**sémantique PATCH**).
  *
- *       - Les champs omis conservent leur valeur actuelle (sémantique PATCH).
- *       - Passer `"description": null` pour effacer la description.
- *       - Retourne 404 si l'ID n'existe pas.
+ *       - Les champs **omis** conservent leur valeur actuelle.
+ *       - Passer `"description": null` pour **effacer** la description.
+ *       - Retourne **404** si l'ID n'existe pas.
+ *       - Retourne **400** si un champ fourni est invalide.
  *     operationId: updateTodo
  *     parameters:
  *       - $ref: '#/components/parameters/TodoId'
@@ -341,36 +466,84 @@ router.get("/:id", async (req, res, next) => {
  *               summary: Marquer comme terminé
  *               value:
  *                 status: done
+ *             mettreEnCours:
+ *               summary: Démarrer une tâche
+ *               value:
+ *                 status: in-progress
  *             renommer:
  *               summary: Renommer le todo
  *               value:
  *                 title: Buy organic groceries
  *             effacerDescription:
- *               summary: Effacer la description
+ *               summary: Effacer la description (passer null)
  *               value:
  *                 description: null
+ *             ajouterDescription:
+ *               summary: Ajouter une description à un todo qui n'en avait pas
+ *               value:
+ *                 description: Pick up from the farmers market on Saturday
  *             miseAJourComplete:
- *               summary: Mettre à jour tous les champs
+ *               summary: Mettre à jour tous les champs en même temps
  *               value:
  *                 title: Buy organic groceries
  *                 description: From the farmers market only
  *                 status: in-progress
  *     responses:
  *       200:
- *         description: Le todo mis à jour
+ *         description: Le todo après mise à jour
  *         content:
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Todo'
- *             example:
- *               id: 42
- *               title: Buy organic groceries
- *               description: From the farmers market only
- *               status: in-progress
+ *             examples:
+ *               marqueCommeTermine:
+ *                 summary: Todo passé à done
+ *                 value:
+ *                   id: 42
+ *                   title: Buy groceries
+ *                   description: "Oat milk, eggs"
+ *                   status: done
+ *               descriptionEffacee:
+ *                 summary: Description effacée (null)
+ *                 value:
+ *                   id: 42
+ *                   title: Buy groceries
+ *                   description: null
+ *                   status: pending
+ *               miseAJourComplete:
+ *                 summary: Tous les champs mis à jour
+ *                 value:
+ *                   id: 42
+ *                   title: Buy organic groceries
+ *                   description: From the farmers market only
+ *                   status: in-progress
  *       400:
- *         $ref: '#/components/responses/ValidationError'
+ *         description: Validation échouée sur un des champs fournis
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *             examples:
+ *               titreVide:
+ *                 summary: title vide
+ *                 value:
+ *                   detail:
+ *                     - path: [title]
+ *                       message: String must contain at least 1 character(s)
+ *               statutInvalide:
+ *                 summary: Valeur de status inconnue
+ *                 value:
+ *                   detail:
+ *                     - path: [status]
+ *                       message: "Invalid enum value. Expected 'pending' | 'in-progress' | 'done', received 'completed'"
  *       404:
- *         $ref: '#/components/responses/NotFound'
+ *         description: Aucun todo trouvé avec cet ID
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             example:
+ *               detail: Todo not found
  */
 // PUT /todos/:id
 router.put("/:id", async (req, res, next) => {
@@ -405,11 +578,11 @@ router.put("/:id", async (req, res, next) => {
  *       - Todos
  *     summary: Supprimer un todo
  *     description: |
- *       Supprime définitivement un todo par son ID.
+ *       Supprime **définitivement** un todo par son ID.
  *
- *       **Cette action est irréversible.**
+ *       ⚠️ **Cette action est irréversible** — il n'existe pas de corbeille.
  *
- *       Retourne 404 si l'ID n'existe pas.
+ *       Retourne **404** si l'ID n'existe pas (déjà supprimé ou jamais créé).
  *     operationId: deleteTodo
  *     parameters:
  *       - $ref: '#/components/parameters/TodoId'
@@ -425,10 +598,26 @@ router.put("/:id", async (req, res, next) => {
  *                   type: string
  *                   description: Message de confirmation
  *                   example: Todo deleted
- *             example:
- *               detail: Todo deleted
+ *             examples:
+ *               succes:
+ *                 summary: Suppression réussie
+ *                 value:
+ *                   detail: Todo deleted
  *       404:
- *         $ref: '#/components/responses/NotFound'
+ *         description: Aucun todo trouvé avec cet ID (déjà supprimé ou inexistant)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *             examples:
+ *               inexistant:
+ *                 summary: ID jamais créé
+ *                 value:
+ *                   detail: Todo not found
+ *               dejaSuppr:
+ *                 summary: ID déjà supprimé
+ *                 value:
+ *                   detail: Todo not found
  */
 // DELETE /todos/:id
 router.delete("/:id", async (req, res, next) => {
