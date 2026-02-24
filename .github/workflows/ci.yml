@@ -182,6 +182,7 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_USER_HOME: /tmp/runner-cache/sonar-home
 
   docker:
     runs-on: [self-hosted, dokploy-runner]
