@@ -33,10 +33,65 @@ app.use(
 app.use(morgan("combined"))
 app.use(express.json())
 
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     tags:
+ *       - System
+ *     summary: Racine de l'API
+ *     description: Retourne un message de bienvenue. Permet de vérifier rapidement que le serveur répond.
+ *     operationId: getRoot
+ *     responses:
+ *       200:
+ *         description: Serveur opérationnel
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   description: Message de bienvenue statique
+ *                   example: Todo API
+ *             example:
+ *               message: Todo API
+ */
 app.get("/", (_req, res) => {
   res.json({ message: "Todo API" })
 })
 
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     tags:
+ *       - System
+ *     summary: Health check
+ *     description: |
+ *       Retourne le statut de santé de l'application et l'uptime du processus en secondes.
+ *       Utilisé par les load balancers et les outils de monitoring.
+ *     operationId: getHealth
+ *     responses:
+ *       200:
+ *         description: Application en bonne santé
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   description: Toujours `ok` quand le serveur tourne
+ *                   example: ok
+ *                 uptime:
+ *                   type: number
+ *                   description: Uptime du processus en secondes depuis le dernier redémarrage
+ *                   example: 3723.8
+ *             example:
+ *               status: ok
+ *               uptime: 3723.8
+ */
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() })
 })
