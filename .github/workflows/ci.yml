@@ -8,6 +8,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  PNPM_STORE: /tmp/runner-cache/pnpm-store
+  NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
+  DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
+  K6_BIN: /tmp/runner-cache/k6
+  SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
 
 jobs:
   lint:
@@ -18,46 +23,69 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-lint
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-nm-lint.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
+          fi
       - name: Lint
-        run: pnpm exec eslint .
+        run: pnpm exec eslint . --cache --cache-location /tmp/runner-cache/eslint-cache
 
   test:
     runs-on: [self-hosted, dokploy-runner]
+    strategy:
+      matrix:
+        suite: [todo, database, error-handler, error-handler-prod]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-test
-        uses: actions/cache@v5
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Run ${{ matrix.suite }} tests
+        run: pnpm exec jest tests/${{ matrix.suite }}.test.js --coverage --coverageReporters=lcov --coverageThreshold='{}' --forceExit --detectOpenHandles
+      - name: Upload coverage shard
+        uses: actions/upload-artifact@v6
         with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-nm-test.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Cache Jest
-        uses: actions/cache@v5
+          name: coverage-${{ matrix.suite }}
+          path: coverage/lcov.info
+          retention-days: 1
+
+  test-merge:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: test
+    steps:
+      - name: Download all coverage shards
+        uses: actions/download-artifact@v7
         with:
-          path: node_modules/.cache/jest
-          key: jest-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-          restore-keys: jest-${{ runner.os }}-
-      - name: Test and generate coverage
-        run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
-      - name: Upload coverage artifact
+          pattern: coverage-*
+          path: coverage-shards
+      - name: Merge lcov files
+        run: |
+          mkdir -p coverage
+          cat coverage-shards/*/lcov.info > coverage/lcov.info
+      - name: Upload merged coverage
         uses: actions/upload-artifact@v6
         with:
           name: coverage
@@ -66,7 +94,7 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
+    needs: [lint, test-merge]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -74,27 +102,27 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-          cache: pnpm
-      - name: Cache node_modules
-        id: cache-nm-perf
-        uses: actions/cache@v5
-        with:
-          path: node_modules
-          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: Install dependencies
-        if: steps.cache-nm-perf.outputs.cache-hit != 'true'
-        run: pnpm install --frozen-lockfile
-      - name: Cache k6 binary
-        id: cache-k6
-        uses: actions/cache@v5
-        with:
-          path: /usr/local/bin/k6
-          key: k6-v0.55.0
-      - name: Install k6
-        if: steps.cache-k6.outputs.cache-hit != 'true'
+      - name: Restore or install node_modules
         run: |
-          curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
-          sudo mv k6 /usr/local/bin/k6
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Install k6
+        run: |
+          if [ ! -f "$K6_BIN" ]; then
+            mkdir -p "$(dirname $K6_BIN)"
+            curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
+            mv k6 "$K6_BIN"
+          fi
+          sudo ln -sf "$K6_BIN" /usr/local/bin/k6
       - name: Start server
         run: node app.js &
         env:
@@ -112,7 +140,6 @@ jobs:
 
   security:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
     steps:
       - uses: actions/checkout@v6
       - name: Cache Trivy DB
@@ -131,7 +158,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Quality Gate
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
+    needs: test-merge
     steps:
       - uses: actions/checkout@v6
         with:
@@ -141,34 +168,25 @@ jobs:
         with:
           name: coverage
           path: coverage
-      - name: Cache SonarCloud scanner
-        uses: actions/cache@v5
-        with:
-          path: ~/.sonar/cache
-          key: sonar-${{ runner.os }}-${{ hashFiles('sonar-project.properties') }}
-          restore-keys: sonar-${{ runner.os }}-
-      - name: Cache sonar-scanner binary
-        id: cache-sonar-bin
-        uses: actions/cache@v5
-        with:
-          path: ~/.sonar/sonar-scanner
-          key: sonar-scanner-bin-6.2
       - name: Install sonar-scanner
-        if: steps.cache-sonar-bin.outputs.cache-hit != 'true'
         run: |
-          curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
-          unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
-          mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 ~/.sonar/sonar-scanner
-          rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
+          if [ ! -f "$SONAR_SCANNER/bin/sonar-scanner" ]; then
+            mkdir -p "$(dirname $SONAR_SCANNER)"
+            curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
+            unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
+            mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 "$SONAR_SCANNER"
+            rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
+          fi
       - name: SonarCloud Scan
-        run: ~/.sonar/sonar-scanner/bin/sonar-scanner
+        run: ${{ env.SONAR_SCANNER }}/bin/sonar-scanner
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+          SONAR_USER_HOME: /tmp/runner-cache/sonar-home
 
   docker:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
+    needs: [lint, test-merge]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
@@ -177,6 +195,9 @@ jobs:
       - uses: actions/checkout@v6
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -189,8 +210,8 @@ jobs:
           context: .
           push: true
           tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=min
+          cache-from: type=local,src=${{ env.DOCKER_CACHE }}
+          cache-to: type=local,dest=${{ env.DOCKER_CACHE }},mode=min
           provenance: false
           sbom: false
 
