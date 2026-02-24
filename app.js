@@ -4,6 +4,8 @@ const express = require("express")
 const helmet = require("helmet")
 const morgan = require("morgan")
 const rateLimit = require("express-rate-limit")
+const swaggerUi = require("swagger-ui-express")
+const swaggerSpec = require("./swagger")
 const todoRouter = require("./routes/todo")
 
 const app = express()
@@ -40,6 +42,17 @@ app.get("/health", (_req, res) => {
 })
 
 app.use("/todos", todoRouter)
+
+// Swagger UI — disable helmet's CSP on this route only so the UI loads
+app.use(
+  "/docs",
+  (_req, res, next) => {
+    res.removeHeader("Content-Security-Policy")
+    next()
+  },
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec),
+)
 
 app.use((_req, res) => {
   res.status(404).json({ detail: "Not found" })
