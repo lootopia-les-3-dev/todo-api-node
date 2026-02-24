@@ -8,11 +8,12 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PNPM_STORE: /tmp/runner-cache/pnpm-store
   NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
   DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
   K6_BIN: /tmp/runner-cache/k6
   SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
+  TRIVY_CACHE: /tmp/runner-cache/trivy
+  RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
 
 jobs:
   lint:
@@ -81,10 +82,11 @@ jobs:
         with:
           pattern: coverage-*
           path: coverage-shards
-      - name: Merge lcov files
+      - name: Merge lcov files and persist to shared volume
         run: |
           mkdir -p coverage
           cat coverage-shards/*/lcov.info > coverage/lcov.info
+          cp coverage/lcov.info /tmp/runner-cache/lcov-latest.info
       - name: Upload merged coverage
         uses: actions/upload-artifact@v6
         with:
@@ -94,7 +96,7 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test-merge]
+    needs: [lint, test]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -115,14 +117,6 @@ jobs:
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
-      - name: Install k6
-        run: |
-          if [ ! -f "$K6_BIN" ]; then
-            mkdir -p "$(dirname $K6_BIN)"
-            curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
-            mv k6 "$K6_BIN"
-          fi
-          sudo ln -sf "$K6_BIN" /usr/local/bin/k6
       - name: Start server
         run: node app.js &
         env:
@@ -135,6 +129,14 @@ jobs:
             curl -sf http://localhost:3000/health && break
             sleep 1
           done
+      - name: Install k6
+        run: |
+          if [ ! -f "$K6_BIN" ]; then
+            mkdir -p "$(dirname $K6_BIN)"
+            curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
+            mv k6 "$K6_BIN"
+          fi
+          sudo ln -sf "$K6_BIN" /usr/local/bin/k6
       - name: Run k6 load tests
         run: k6 run tests/load.js
 
@@ -142,32 +144,28 @@ jobs:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
-      - name: Cache Trivy DB
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
-          restore-keys: trivy-db-
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+        env:
+          TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
   sonarcloud:
     name: SonarCloud Quality Gate
     runs-on: [self-hosted, dokploy-runner]
-    needs: test-merge
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: coverage
-          path: coverage
+          fetch-depth: 1
+      - name: Restore coverage from shared volume
+        run: |
+          mkdir -p coverage
+          if [ -f /tmp/runner-cache/lcov-latest.info ]; then
+            cp /tmp/runner-cache/lcov-latest.info coverage/lcov.info
+          fi
       - name: Install sonar-scanner
         run: |
           if [ ! -f "$SONAR_SCANNER/bin/sonar-scanner" ]; then
@@ -184,9 +182,30 @@ jobs:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_USER_HOME: /tmp/runner-cache/sonar-home
 
-  docker:
+  docker-build:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test-merge]
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+          driver-opts: network=host
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=local,src=${{ env.DOCKER_CACHE }}
+          cache-to: type=local,dest=${{ env.DOCKER_CACHE }},mode=min
+          provenance: false
+          sbom: false
+
+  docker-push:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: [docker-build, security, sonarcloud]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
@@ -217,7 +236,7 @@ jobs:
 
   deploy-staging:
     runs-on: [self-hosted, dokploy-runner]
-    needs: docker
+    needs: docker-push
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
@@ -227,7 +246,7 @@ jobs:
 
   deploy:
     runs-on: [self-hosted, dokploy-runner]
-    needs: docker
+    needs: docker-push
     if: github.ref == 'refs/heads/main'
     environment:
       name: production
