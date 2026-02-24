@@ -58,14 +58,11 @@ jobs:
           DB_PATH: ./perf-test.db
       - name: Wait for server
         run: npx wait-on http://localhost:3000/health --timeout 15000
-      - name: Install k6
+      - name: Install and run k6 load tests
         run: |
           curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
           sudo mv k6 /usr/local/bin/k6
-      - name: Run k6 load tests
-        uses: grafana/k6-action@v0.3.1
-        with:
-          filename: tests/load.js
+          k6 run tests/load.js
 
   security:
     runs-on: [self-hosted, dokploy-runner]
