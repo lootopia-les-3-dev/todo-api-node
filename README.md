@@ -43,7 +43,7 @@ pnpm test:coverage
 
 ## Docs
 
-Swagger UI available at `/api-docs` when the server is running.
+Swagger UI available at `/docs` when the server is running.
 
 ## Environments
 
