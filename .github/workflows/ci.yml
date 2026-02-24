@@ -99,7 +99,11 @@ jobs:
           NODE_ENV: production
           DB_PATH: ./perf-test.db
       - name: Wait for server
-        run: npx wait-on http://localhost:3000/health --timeout 15000
+        run: |
+          for i in $(seq 1 15); do
+            curl -sf http://localhost:3000/health && break
+            sleep 1
+          done
       - name: Run k6 load tests
         run: k6 run tests/load.js
 
