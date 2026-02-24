@@ -36,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Cache Jest
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: node_modules/.cache/jest
           key: jest-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
@@ -65,7 +65,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Cache k6 binary
         id: cache-k6
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /usr/local/bin/k6
           key: k6-v0.55.0
@@ -91,7 +91,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Cache Trivy DB
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.cache/trivy
           key: trivy-db-${{ github.run_id }}
@@ -117,7 +117,7 @@ jobs:
           name: coverage
           path: coverage
       - name: Cache SonarCloud scanner
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.sonar/cache
           key: sonar-${{ runner.os }}
