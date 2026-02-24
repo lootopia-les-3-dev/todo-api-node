@@ -33,7 +33,7 @@ module.exports = [
   js.configs.recommended,
   {
     files: ["**/*.js"],
-    ignores: ["node_modules/**", "coverage/**"],
+    ignores: ["node_modules/**", "coverage/**", "tests/load.js"],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "commonjs",
