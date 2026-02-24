@@ -27,7 +27,7 @@ jobs:
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY" node_modules
+            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
             echo "cache-hit=true" >> $GITHUB_OUTPUT
           fi
         id: nm-cache
@@ -52,7 +52,7 @@ jobs:
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY" node_modules
+            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
             echo "cache-hit=true" >> $GITHUB_OUTPUT
           fi
         id: nm-cache
@@ -85,7 +85,7 @@ jobs:
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY" node_modules
+            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
           else
             PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
           fi
