@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -25,7 +25,7 @@ jobs:
         run: pnpm exec eslint .
 
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -35,14 +35,67 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Test
-        run: pnpm exec jest --coverage --forceExit --detectOpenHandles
+      - name: Cache Jest
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache/jest
+          key: jest-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: jest-${{ runner.os }}-
+      - name: Test and generate coverage
+        run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/lcov.info
+          retention-days: 1
+
+  perf:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: [lint, test]
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Cache k6 binary
+        id: cache-k6
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/k6
+          key: k6-v0.55.0
+      - name: Install k6
+        if: steps.cache-k6.outputs.cache-hit != 'true'
+        run: |
+          curl -L https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz | tar xvz --strip-components 1
+          sudo mv k6 /usr/local/bin/k6
+      - name: Start server
+        run: node app.js &
+        env:
+          PORT: 3000
+          NODE_ENV: production
+          DB_PATH: ./perf-test.db
+      - name: Wait for server
+        run: npx wait-on http://localhost:3000/health --timeout 15000
+      - name: Run k6 load tests
+        run: k6 run tests/load.js
 
   security:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ github.run_id }}
+          restore-keys: trivy-db-
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -52,21 +105,17 @@ jobs:
 
   sonarcloud:
     name: SonarCloud Quality Gate
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     needs: [lint, test]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Download coverage artifact
+        uses: actions/download-artifact@v4
         with:
-          node-version: 20
-          cache: pnpm
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: Generate coverage report (lcov)
-        run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
+          name: coverage
+          path: coverage
       - name: Cache SonarCloud scanner
         uses: actions/cache@v4
         with:
@@ -79,7 +128,7 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   docker:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     needs: [lint, test]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
@@ -107,7 +156,7 @@ jobs:
           sbom: false
 
   deploy-staging:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     needs: docker
     if: github.ref == 'refs/heads/develop'
     environment:
@@ -117,7 +166,7 @@ jobs:
         run: curl -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, dokploy-runner]
     needs: docker
     if: github.ref == 'refs/heads/main'
     environment:
