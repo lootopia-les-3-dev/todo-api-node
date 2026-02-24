@@ -41,6 +41,9 @@ jobs:
 
   test:
     runs-on: [self-hosted, dokploy-runner]
+    strategy:
+      matrix:
+        suite: [todo, database, error-handler, error-handler-prod]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -60,9 +63,29 @@ jobs:
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
-      - name: Test and generate coverage
-        run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
-      - name: Upload coverage artifact
+      - name: Run ${{ matrix.suite }} tests
+        run: pnpm exec jest tests/${{ matrix.suite }}.test.js --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
+      - name: Upload coverage shard
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-${{ matrix.suite }}
+          path: coverage/lcov.info
+          retention-days: 1
+
+  test-merge:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: test
+    steps:
+      - name: Download all coverage shards
+        uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-*
+          path: coverage-shards
+      - name: Merge lcov files
+        run: |
+          mkdir -p coverage
+          cat coverage-shards/*/lcov.info > coverage/lcov.info
+      - name: Upload merged coverage
         uses: actions/upload-artifact@v6
         with:
           name: coverage
@@ -71,7 +94,7 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
+    needs: [lint, test-merge]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -135,7 +158,7 @@ jobs:
   sonarcloud:
     name: SonarCloud Quality Gate
     runs-on: [self-hosted, dokploy-runner]
-    needs: test
+    needs: test-merge
     steps:
       - uses: actions/checkout@v6
         with:
@@ -162,7 +185,7 @@ jobs:
 
   docker:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
+    needs: [lint, test-merge]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
