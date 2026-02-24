@@ -23,20 +23,19 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - name: Restore node_modules from shared cache
+      - name: Restore or install node_modules
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
-          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
-            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
           fi
-        id: nm-cache
-      - name: Install dependencies
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-        run: |
-          PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
-          mkdir -p "$NODE_MODULES_CACHE"
-          cp -a node_modules "$NODE_MODULES_CACHE/node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
       - name: Lint
         run: pnpm exec eslint .
 
@@ -48,20 +47,19 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - name: Restore node_modules from shared cache
+      - name: Restore or install node_modules
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
-          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
-            echo "cache-hit=true" >> $GITHUB_OUTPUT
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
           fi
-        id: nm-cache
-      - name: Install dependencies
-        if: steps.nm-cache.outputs.cache-hit != 'true'
-        run: |
-          PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
-          mkdir -p "$NODE_MODULES_CACHE"
-          cp -a node_modules "$NODE_MODULES_CACHE/node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
       - name: Test and generate coverage
         run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
       - name: Upload coverage artifact
@@ -81,13 +79,18 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: 20
-      - name: Restore node_modules from shared cache
+      - name: Restore or install node_modules
         run: |
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
-          if [ -d "$NODE_MODULES_CACHE/$KEY" ]; then
-            cp -a "$NODE_MODULES_CACHE/$KEY/." node_modules
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
           else
-            PNPM_HOME="$PNPM_STORE" pnpm install --frozen-lockfile --prefer-offline
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Install k6
         run: |
