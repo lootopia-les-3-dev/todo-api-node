@@ -162,7 +162,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Restore coverage from shared volume
         run: |
           mkdir -p coverage
