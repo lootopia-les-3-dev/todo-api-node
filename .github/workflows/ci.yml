@@ -149,10 +149,10 @@ jobs:
       - name: Install sonar-scanner
         if: steps.cache-sonar-bin.outputs.cache-hit != 'true'
         run: |
-          mkdir -p ~/.sonar/sonar-scanner
           curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
-          unzip -q /tmp/sonar-scanner.zip -d ~/.sonar/sonar-scanner --strip-components 1
-          rm /tmp/sonar-scanner.zip
+          unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
+          mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 ~/.sonar/sonar-scanner
+          rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
       - name: SonarCloud Scan
         run: ~/.sonar/sonar-scanner/bin/sonar-scanner
         env:
