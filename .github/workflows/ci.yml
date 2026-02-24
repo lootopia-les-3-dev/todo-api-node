@@ -63,7 +63,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Generate coverage report (lcov)
-        run: pnpm test:coverage --coverageReporters=lcov
+        run: pnpm exec jest --coverage --coverageReporters=lcov --forceExit --detectOpenHandles
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@master
         env:
