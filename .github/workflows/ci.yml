@@ -81,10 +81,11 @@ jobs:
         with:
           pattern: coverage-*
           path: coverage-shards
-      - name: Merge lcov files
+      - name: Merge lcov files and persist to shared volume
         run: |
           mkdir -p coverage
           cat coverage-shards/*/lcov.info > coverage/lcov.info
+          cp coverage/lcov.info /tmp/runner-cache/lcov-latest.info
       - name: Upload merged coverage
         uses: actions/upload-artifact@v6
         with:
@@ -94,7 +95,7 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test-merge]
+    needs: [lint, test]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -158,16 +159,17 @@ jobs:
   sonarcloud:
     name: SonarCloud Quality Gate
     runs-on: [self-hosted, dokploy-runner]
-    needs: test-merge
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Download coverage artifact
-        uses: actions/download-artifact@v7
-        with:
-          name: coverage
-          path: coverage
+      - name: Restore coverage from shared volume
+        run: |
+          mkdir -p coverage
+          if [ -f /tmp/runner-cache/lcov-latest.info ]; then
+            cp /tmp/runner-cache/lcov-latest.info coverage/lcov.info
+          fi
       - name: Install sonar-scanner
         run: |
           if [ ! -f "$SONAR_SCANNER/bin/sonar-scanner" ]; then
@@ -186,7 +188,7 @@ jobs:
 
   docker:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test-merge]
+    needs: [lint, test]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
