@@ -1,22 +1,24 @@
-const initSqlJs = require("sql.js");
-const fs = require("fs");
-const path = require("path");
+const initSqlJs = require("sql.js")
+const fs = require("fs")
+const fsp = require("fs/promises")
+const path = require("path")
 
-// TODO: move to env vars later
-const DB_PATH = path.join(__dirname, "..", "todo.db");
-const DB_PASSWORD = "admin123";
+const DB_PATH = path.resolve(process.env.DB_PATH || path.join(__dirname, "..", "todo.db"))
 
-let db;
+let db
 
-async function getDb() {
-  if (db) return db;
-  console.log("initializing database connection")
-  const SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
-    const buffer = fs.readFileSync(DB_PATH);
-    db = new SQL.Database(buffer);
-  } else {
-    db = new SQL.Database();
+const getDb = async function() {
+  if (db) return db
+  const SQL = await initSqlJs()
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const buffer = await fsp.readFile(DB_PATH)
+      db = new SQL.Database(buffer)
+    } else {
+      db = new SQL.Database()
+    }
+  } catch (err) {
+    throw new Error(`Failed to initialize database: ${err.message}`, { cause: err })
   }
   db.run(`
     CREATE TABLE IF NOT EXISTS todos (
@@ -25,16 +27,18 @@ async function getDb() {
       description TEXT,
       status TEXT DEFAULT 'pending'
     )
-  `);
-  return db;
+  `)
+  return db
 }
 
-function saveDb() {
-  if (db) {
-    console.log("saving database to disk")
-    const data = db.export();
-    fs.writeFileSync(DB_PATH, Buffer.from(data));
+const saveDb = async function() {
+  if (!db) return
+  try {
+    const data = db.export()
+    await fsp.writeFile(DB_PATH, Buffer.from(data))
+  } catch (err) {
+    throw new Error(`Failed to save database: ${err.message}`, { cause: err })
   }
 }
 
-module.exports = { getDb, saveDb };
+module.exports = { getDb, saveDb }
