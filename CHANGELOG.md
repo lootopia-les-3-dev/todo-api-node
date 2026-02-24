@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.1...v1.0.2) (2026-02-24)
+
+
+### Bug Fixes
+
+* ci fast v3 ([97cac26](https://github.com/lootopia-les-3-dev/todo-api-node/commit/97cac260cce8f50c525c5d4112d46c3092e9d404))
+
 ## [1.0.1](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.0...v1.0.1) (2026-02-24)
 
 
