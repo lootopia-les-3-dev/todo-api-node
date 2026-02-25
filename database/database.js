@@ -1,7 +1,10 @@
-const initSqlJs = require("sql.js")
-const fs = require("fs")
-const fsp = require("fs/promises")
-const path = require("path")
+import initSqlJs from "sql.js"
+import fs from "fs"
+import fsp from "fs/promises"
+import path from "path"
+import { fileURLToPath } from "url"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Paths starting with ":" (e.g. ":memory-test:") are treated as in-memory only — never persisted
 const rawPath = process.env.DB_PATH || path.join(__dirname, "..", "todo.db")
@@ -43,4 +46,4 @@ const saveDb = async function() {
   }
 }
 
-module.exports = { getDb, saveDb }
+export { getDb, saveDb }
