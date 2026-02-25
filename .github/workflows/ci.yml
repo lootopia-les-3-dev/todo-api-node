@@ -77,9 +77,23 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
           node-version: 20
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            cp -a "$CACHE_DIR/." node_modules
+          else
+            rm -rf "$CACHE_DIR"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR"
+            touch "$CACHE_DIR/.cache-ok"
+          fi
       - name: Start server
         run: node app.js &
         env:
