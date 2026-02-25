@@ -32,8 +32,8 @@ app.use((req, res, next) => {
 
 app.use(
   rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 60_000,
-    max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || /* istanbul ignore next */ 60_000,
+    max: parseInt(process.env.RATE_LIMIT_MAX) || /* istanbul ignore next */ 100,
     standardHeaders: true,
     legacyHeaders: false,
   }),
@@ -131,10 +131,11 @@ app.use((err, _req, res, _next) => {
   res.status(status).json({ detail: message })
 })
 
-const PORT = parseInt(process.env.PORT) || 3000
+const PORT = parseInt(process.env.PORT) || /* istanbul ignore next */ 3000
 
 // Start the server only when this file is the entry point (not during tests)
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))
+/* istanbul ignore next */
 if (isMain) {
   // eslint-disable-next-line no-console
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
