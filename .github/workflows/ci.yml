@@ -44,6 +44,11 @@ jobs:
 
   test:
     runs-on: [self-hosted, dokploy-runner]
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+      fail-fast: false
+    name: test (node ${{ matrix.node-version }})
     steps:
       - uses: actions/checkout@v6
         with:
@@ -51,10 +56,10 @@ jobs:
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
-          node-version: 20
+          node-version: ${{ matrix.node-version }}
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
@@ -66,8 +71,9 @@ jobs:
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Run tests
-        run: NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
+        run: NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache-node${{ matrix.node-version }} --forceExit --detectOpenHandles
       - name: Upload to Codecov
+        if: matrix.node-version == 20
         run: |
           if [ ! -f "$CODECOV_BIN" ]; then
             curl -Os https://cli.codecov.io/latest/linux/codecov
@@ -190,6 +196,35 @@ jobs:
     steps:
       - name: Deploy to staging
         run: curl -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
+      - name: Wait for staging to be up
+        run: sleep 15
+      - name: Smoke test — health
+        run: curl -sf "${{ secrets.STAGING_URL }}/health" | grep -q '"ok"'
+      - name: Smoke test — homepage responds
+        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.STAGING_URL }}" | grep -q "200"
+      - name: Ping monitoring
+        if: success()
+        run: curl -s "${{ secrets.UPTIMEROBOT_HEARTBEAT_STAGING }}" || true
+
+  rollback-staging:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: deploy-staging
+    if: failure() && github.ref == 'refs/heads/develop'
+    environment:
+      name: staging
+    steps:
+      - name: Rollback staging
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging-previous \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging || echo "No previous image, skipping"
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:staging || true
+      - name: Re-trigger staging deploy hook
+        run: curl -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}" || true
+      - name: Notify rollback on Discord
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"embeds\":[{\"title\":\"Rollback staging declenche\",\"description\":\"Commit \`${{ github.sha }}\` par **${{ github.actor }}**\",\"color\":15548997}]}" || true
 
   deploy:
     runs-on: [self-hosted, dokploy-runner]
@@ -198,8 +233,43 @@ jobs:
     environment:
       name: production
     steps:
+      - name: Tag current image as previous (rollback target)
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
       - name: Deploy to production
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+      - name: Wait for production to be up
+        run: sleep 20
+      - name: Smoke test — health
+        run: curl -sf "${{ secrets.PRODUCTION_URL }}/health" | grep -q '"ok"'
+      - name: Smoke test — homepage responds
+        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.PRODUCTION_URL }}" | grep -q "200"
+      - name: Ping monitoring
+        if: success()
+        run: curl -s "${{ secrets.UPTIMEROBOT_HEARTBEAT_PROD }}" || true
+
+  rollback-production:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: deploy
+    if: failure() && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: Rollback production
+        run: |
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || echo "No previous image, skipping"
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+      - name: Re-trigger production deploy hook
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}" || true
+      - name: Notify rollback on Discord
+        run: |
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"embeds\":[{\"title\":\"Rollback production declenche\",\"description\":\"Commit \`${{ github.sha }}\` par **${{ github.actor }}**\",\"color\":15548997}]}" || true
 
   release-please:
     runs-on: [self-hosted, dokploy-runner]
@@ -211,3 +281,36 @@ jobs:
       - uses: googleapis/release-please-action@v4
         with:
           release-type: node
+
+  notify:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: [lint, test, security, docker-push]
+    if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [[ "${{ needs.lint.result }}" == "success" && \
+                "${{ needs.test.result }}" == "success" && \
+                "${{ needs.security.result }}" == "success" && \
+                "${{ needs.docker-push.result }}" == "success" ]]; then
+            echo "color=5763719" >> $GITHUB_OUTPUT
+            echo "label=succes" >> $GITHUB_OUTPUT
+          else
+            echo "color=15548997" >> $GITHUB_OUTPUT
+            echo "label=echec" >> $GITHUB_OUTPUT
+          fi
+      - name: Send Discord notification
+        run: |
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          curl -s -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"CI ${{ steps.status.outputs.label }} — ${{ github.ref_name }}\",
+                \"description\": \"Commit \`$SHORT_SHA\` par **${{ github.actor }}**\nlint: ${{ needs.lint.result }} | test: ${{ needs.test.result }} | security: ${{ needs.security.result }} | push: ${{ needs.docker-push.result }}\",
+                \"color\": ${{ steps.status.outputs.color }},
+                \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
+              }]
+            }" || true
