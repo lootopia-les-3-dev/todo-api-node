@@ -34,6 +34,26 @@ describe("Todo API", () => {
     })
   })
 
+  describe("X-Request-ID middleware", () => {
+    it("generates a request ID when none provided", async () => {
+      const res = await request(app).get("/")
+      expect(res.headers["x-request-id"]).toBeDefined()
+    })
+
+    it("uses the provided X-Request-ID header", async () => {
+      const res = await request(app).get("/").set("x-request-id", "my-custom-id")
+      expect(res.headers["x-request-id"]).toBe("my-custom-id")
+    })
+  })
+
+  describe("GET /docs", () => {
+    it("serves swagger UI and removes CSP header", async () => {
+      const res = await request(app).get("/docs/")
+      expect([200, 301, 302]).toContain(res.status)
+      expect(res.headers["content-security-policy"]).toBeUndefined()
+    })
+  })
+
   describe("POST /todos", () => {
     it("creates a todo with valid input", async () => {
       const res = await request(app)
@@ -155,6 +175,17 @@ describe("Todo API", () => {
       expect(res.body.title).toBe("Keep me")
       expect(res.body.description).toBe("my desc")
       expect(res.body.status).toBe("done")
+    })
+
+    it("keeps existing status when only title is updated", async () => {
+      const create = await request(app)
+        .post("/todos")
+        .send({ title: "Original", status: "in-progress" })
+      const { id } = create.body
+      const res = await request(app).put(`/todos/${id}`).send({ title: "New title" })
+      expect(res.status).toBe(200)
+      expect(res.body.title).toBe("New title")
+      expect(res.body.status).toBe("in-progress")
     })
 
     it("returns 404 for nonexistent id", async () => {
