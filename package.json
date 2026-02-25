@@ -1,6 +1,6 @@
 {
   "name": "express-crud-todo",
-  "version": "1.0.4",
+  "version": "1.1.0",
   "description": "a todo api",
   "main": "app.js",
   "type": "module",
