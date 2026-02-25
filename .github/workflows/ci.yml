@@ -11,7 +11,6 @@ env:
   NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
   DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
   K6_BIN: /tmp/runner-cache/k6
-  SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
   TRIVY_CACHE: /tmp/runner-cache/trivy
   RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
 
@@ -63,14 +62,11 @@ jobs:
           fi
       - name: Run tests
         run: pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
-      - name: Persist coverage to shared volume
-        run: cp coverage/lcov.info /tmp/runner-cache/lcov-latest.info
-      - name: Upload coverage
-        uses: actions/upload-artifact@v6
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
         with:
-          name: coverage
-          path: coverage/lcov.info
-          retention-days: 1
+          files: coverage/lcov.info
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
@@ -126,35 +122,6 @@ jobs:
         env:
           TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
-  sonarcloud:
-    name: SonarCloud Quality Gate
-    runs-on: [self-hosted, dokploy-runner]
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-      - name: Restore coverage from shared volume
-        run: |
-          mkdir -p coverage
-          if [ -f /tmp/runner-cache/lcov-latest.info ]; then
-            cp /tmp/runner-cache/lcov-latest.info coverage/lcov.info
-          fi
-      - name: Install sonar-scanner
-        run: |
-          if [ ! -f "$SONAR_SCANNER/bin/sonar-scanner" ]; then
-            mkdir -p "$(dirname $SONAR_SCANNER)"
-            curl -sSLo /tmp/sonar-scanner.zip https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-6.2.1.4610-linux-x64.zip
-            unzip -q /tmp/sonar-scanner.zip -d /tmp/sonar-scanner-extract
-            mv /tmp/sonar-scanner-extract/sonar-scanner-6.2.1.4610-linux-x64 "$SONAR_SCANNER"
-            rm -rf /tmp/sonar-scanner.zip /tmp/sonar-scanner-extract
-          fi
-      - name: SonarCloud Scan
-        run: ${{ env.SONAR_SCANNER }}/bin/sonar-scanner
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: https://sonarcloud.io
-          SONAR_USER_HOME: /tmp/runner-cache/sonar-home
-
   docker-build:
     runs-on: [self-hosted, dokploy-runner]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
@@ -178,7 +145,7 @@ jobs:
 
   docker-push:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [docker-build, lint, test, security, sonarcloud]
+    needs: [docker-build, lint, test, security]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read

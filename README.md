@@ -1,8 +1,7 @@
 # Todo API
 
 [![CI](https://github.com/lootopia-les-3-dev/todo-api-node/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/lootopia-les-3-dev/todo-api-node/actions/workflows/ci.yml)
-[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=lootopia-les-3-dev_todo-api-node&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=lootopia-les-3-dev_todo-api-node)
-[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=lootopia-les-3-dev_todo-api-node&metric=coverage)](https://sonarcloud.io/summary/new_code?id=lootopia-les-3-dev_todo-api-node)
+[![Coverage](https://codecov.io/gh/lootopia-les-3-dev/todo-api-node/graph/badge.svg)](https://codecov.io/gh/lootopia-les-3-dev/todo-api-node)
 [![Docker Image](https://ghcr.io/lootopia-les-3-dev/todo-api-node:latest)](https://github.com/lootopia-les-3-dev/todo-api-node/pkgs/container/todo-api-node)
 
 A REST API for managing todos, built with Express.js and SQLite.
