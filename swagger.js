@@ -245,6 +245,23 @@ const options = {
         },
       },
 
+      // --- Reusable headers --------------------------------------------------
+
+      headers: {
+        /**
+         * Unique identifier attached to every response for log correlation.
+         * Echoes the incoming X-Request-ID header if provided, otherwise a new UUID v4 is generated.
+         */
+        XRequestID: {
+          description: "Identifiant unique de la requête pour la corrélation des logs. Reprend le header `X-Request-ID` entrant si fourni, sinon génère un UUID v4.",
+          schema: {
+            type: "string",
+            format: "uuid",
+            example: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          },
+        },
+      },
+
       // --- Reusable responses ------------------------------------------------
 
       responses: {
