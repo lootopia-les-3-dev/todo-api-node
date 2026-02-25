@@ -13,12 +13,15 @@ env:
   K6_BIN: /tmp/runner-cache/k6
   TRIVY_CACHE: /tmp/runner-cache/trivy
   RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
+  CODECOV_BIN: /tmp/runner-cache/codecov
 
 jobs:
   lint:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -28,7 +31,7 @@ jobs:
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
-            cp -a "$CACHE_DIR/." node_modules
+            ln -sfn "$CACHE_DIR" node_modules
           else
             rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
@@ -43,6 +46,8 @@ jobs:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -52,7 +57,7 @@ jobs:
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
-            cp -a "$CACHE_DIR/." node_modules
+            ln -sfn "$CACHE_DIR" node_modules
           else
             rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
@@ -63,16 +68,21 @@ jobs:
       - name: Run tests
         run: pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: coverage/lcov.info
-          token: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ ! -f "$CODECOV_BIN" ]; then
+            curl -Os https://cli.codecov.io/latest/linux/codecov
+            chmod +x codecov
+            mv codecov "$CODECOV_BIN"
+          fi
+          "$CODECOV_BIN" upload-process --fail-on-error -t "${{ secrets.CODECOV_TOKEN }}" -f coverage/lcov.info
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v6
         with:
@@ -82,7 +92,7 @@ jobs:
           KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
-            cp -a "$CACHE_DIR/." node_modules
+            ln -sfn "$CACHE_DIR" node_modules
           else
             rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
@@ -113,6 +123,8 @@ jobs:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: false
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
@@ -127,6 +139,8 @@ jobs:
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     steps:
       - uses: actions/checkout@v6
+        with:
+          clean: false
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
         with:
