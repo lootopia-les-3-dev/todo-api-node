@@ -14,7 +14,7 @@
     "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage --forceExit --detectOpenHandles",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.CI || process.env.NODE_ENV === 'production') process.exit(0)\" && husky || true"
   },
   "jest": {
     "testEnvironment": "node",
