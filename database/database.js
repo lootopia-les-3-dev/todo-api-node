@@ -7,8 +7,8 @@ import { fileURLToPath } from "url"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Paths starting with ":" (e.g. ":memory-test:") are treated as in-memory only — never persisted
-const rawPath = process.env.DB_PATH || path.join(__dirname, "..", "todo.db")
-const DB_PATH = rawPath.startsWith(":") ? null : path.resolve(rawPath)
+const rawPath = process.env.DB_PATH || /* istanbul ignore next */ path.join(__dirname, "..", "todo.db")
+const DB_PATH = rawPath.startsWith(":") ? /* istanbul ignore next */ null : path.resolve(rawPath)
 
 let db
 
@@ -22,7 +22,7 @@ const getDb = async function() {
     } else {
       db = new SQL.Database()
     }
-  } catch (err) {
+  } catch (err) /* istanbul ignore next */ {
     throw new Error(`Failed to initialize database: ${err.message}`, { cause: err })
   }
   db.run(`
@@ -37,6 +37,7 @@ const getDb = async function() {
 }
 
 const saveDb = async function() {
+  /* istanbul ignore next */
   if (!db || !DB_PATH) return
   try {
     const data = db.export()

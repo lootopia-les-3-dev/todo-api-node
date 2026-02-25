@@ -57,4 +57,5 @@ describe("database module", () => {
     await getDb()
     await expect(saveDb()).rejects.toThrow("Failed to save database:")
   })
+
 })
