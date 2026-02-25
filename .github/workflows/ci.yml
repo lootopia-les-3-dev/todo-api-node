@@ -199,6 +199,7 @@ jobs:
       DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
       HEALTH_URL: ${{ secrets.STAGING_URL }}
       REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UPTIMEROBOT_HEARTBEAT: ${{ secrets.UPTIMEROBOT_HEARTBEAT_STAGING }}
 
   rollback-staging:
     runs-on: [self-hosted, dokploy-runner]
@@ -242,6 +243,7 @@ jobs:
       DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
       HEALTH_URL: ${{ secrets.PRODUCTION_URL }}
       REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      UPTIMEROBOT_HEARTBEAT: ${{ secrets.UPTIMEROBOT_HEARTBEAT_PROD }}
 
   rollback-production:
     runs-on: [self-hosted, dokploy-runner]
