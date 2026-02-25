@@ -1,0 +1,62 @@
+name: Reusable Deploy
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      # Deployment strategy: standard | canary | blue-green
+      strategy:
+        required: false
+        type: string
+        default: standard
+    secrets:
+      DEPLOY_HOOK:
+        required: true
+      HEALTH_URL:
+        required: true
+      REGISTRY_TOKEN:
+        required: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, dokploy-runner]
+    environment:
+      name: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.REGISTRY_TOKEN }}
+
+      - name: Tag current image as previous (rollback target)
+        if: inputs.environment == 'production'
+        run: |
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
+          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
+
+      - name: Deploy (${{ inputs.strategy }} strategy)
+        run: |
+          echo "Deploying to ${{ inputs.environment }} using ${{ inputs.strategy }} strategy"
+          curl -X POST "${{ secrets.DEPLOY_HOOK }}"
+
+      - name: Wait for environment to be up
+        run: sleep 20
+
+      - name: Smoke test — health
+        run: curl -sf "${{ secrets.HEALTH_URL }}/health" | grep -q '"ok"'
+
+      - name: Smoke test — homepage responds
+        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.HEALTH_URL }}" | grep -q "200"

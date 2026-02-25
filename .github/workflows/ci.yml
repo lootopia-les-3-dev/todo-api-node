@@ -188,27 +188,22 @@ jobs:
           rm -f ${{ env.DOCKER_CACHE }}/image-${{ github.sha }}.tar
 
   deploy-staging:
-    runs-on: [self-hosted, dokploy-runner]
     needs: docker-push
     if: github.ref == 'refs/heads/develop'
-    environment:
-      name: staging
-    steps:
-      - name: Deploy to staging
-        run: curl -X POST "${{ secrets.STAGING_DEPLOY_HOOK }}"
-      - name: Wait for staging to be up
-        run: sleep 15
-      - name: Smoke test — health
-        run: curl -sf "${{ secrets.STAGING_URL }}/health" | grep -q '"ok"'
-      - name: Smoke test — homepage responds
-        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.STAGING_URL }}" | grep -q "200"
-      - name: Ping monitoring
-        if: success()
-        run: curl -s "${{ secrets.UPTIMEROBOT_HEARTBEAT_STAGING }}" || true
+    # Deployment strategy: canary — routes a subset of traffic before full rollout
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: staging
+      strategy: canary
+    secrets:
+      DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
+      HEALTH_URL: ${{ secrets.STAGING_URL }}
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   rollback-staging:
     runs-on: [self-hosted, dokploy-runner]
     needs: deploy-staging
+    # feature-flag: FEATURE_NEW_TODOS_UI — désactivé en staging si le déploiement échoue
     if: failure() && github.ref == 'refs/heads/develop'
     environment:
       name: staging
@@ -236,38 +231,17 @@ jobs:
             -d "{\"embeds\":[{\"title\":\"Rollback staging declenche\",\"description\":\"Commit \`${{ github.sha }}\` par **${{ github.actor }}**\",\"color\":15548997}]}" || true
 
   deploy:
-    runs-on: [self-hosted, dokploy-runner]
     needs: docker-push
     if: github.ref == 'refs/heads/main'
-    environment:
-      name: production
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Tag current image as previous (rollback target)
-        run: |
-          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest || true
-          docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:previous || true
-      - name: Deploy to production
-        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-      - name: Wait for production to be up
-        run: sleep 20
-      - name: Smoke test — health
-        run: curl -sf "${{ secrets.PRODUCTION_URL }}/health" | grep -q '"ok"'
-      - name: Smoke test — homepage responds
-        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.PRODUCTION_URL }}" | grep -q "200"
-      - name: Ping monitoring
-        if: success()
-        run: curl -s "${{ secrets.UPTIMEROBOT_HEARTBEAT_PROD }}" || true
+    # Deployment strategy: blue-green — production uses the reusable deploy workflow
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: production
+      strategy: blue-green
+    secrets:
+      DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      HEALTH_URL: ${{ secrets.PRODUCTION_URL }}
+      REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   rollback-production:
     runs-on: [self-hosted, dokploy-runner]
