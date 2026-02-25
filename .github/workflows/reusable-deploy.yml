@@ -18,6 +18,8 @@ on:
         required: true
       REGISTRY_TOKEN:
         required: true
+      UPTIMEROBOT_HEARTBEAT:
+        required: false
 
 env:
   REGISTRY: ghcr.io
@@ -60,3 +62,7 @@ jobs:
 
       - name: Smoke test — homepage responds
         run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.HEALTH_URL }}" | grep -q "200"
+
+      - name: Ping UptimeRobot heartbeat
+        if: success()
+        run: curl -s "${{ secrets.UPTIMEROBOT_HEARTBEAT }}" || true
