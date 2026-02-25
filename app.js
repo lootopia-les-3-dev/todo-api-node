@@ -12,6 +12,14 @@ const app = express()
 
 app.use(helmet())
 
+// Attach a unique request ID to every request for log correlation
+app.use((req, res, next) => {
+  const id = req.headers["x-request-id"] || crypto.randomUUID()
+  req.id = id
+  res.setHeader("X-Request-ID", id)
+  next()
+})
+
 app.use((req, res, next) => {
   const origin = process.env.ALLOWED_ORIGIN || "*"
   res.setHeader("Access-Control-Allow-Origin", origin)
