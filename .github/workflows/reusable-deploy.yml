@@ -6,12 +6,6 @@ on:
       environment:
         required: true
         type: string
-      deploy_hook_secret:
-        required: true
-        type: string
-      health_url:
-        required: true
-        type: string
       # Deployment strategy: standard | canary | blue-green
       strategy:
         required: false
@@ -19,6 +13,8 @@ on:
         default: standard
     secrets:
       DEPLOY_HOOK:
+        required: true
+      HEALTH_URL:
         required: true
       REGISTRY_TOKEN:
         required: true
@@ -60,7 +56,7 @@ jobs:
         run: sleep 20
 
       - name: Smoke test — health
-        run: curl -sf "${{ inputs.health_url }}/health" | grep -q '"ok"'
+        run: curl -sf "${{ secrets.HEALTH_URL }}/health" | grep -q '"ok"'
 
       - name: Smoke test — homepage responds
-        run: curl -sf -o /dev/null -w "%{http_code}" "${{ inputs.health_url }}" | grep -q "200"
+        run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.HEALTH_URL }}" | grep -q "200"

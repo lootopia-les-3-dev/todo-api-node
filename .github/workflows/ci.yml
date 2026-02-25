@@ -194,11 +194,10 @@ jobs:
     uses: ./.github/workflows/reusable-deploy.yml
     with:
       environment: staging
-      deploy_hook_secret: STAGING_DEPLOY_HOOK
-      health_url: ${{ secrets.STAGING_URL }}
       strategy: canary
     secrets:
       DEPLOY_HOOK: ${{ secrets.STAGING_DEPLOY_HOOK }}
+      HEALTH_URL: ${{ secrets.STAGING_URL }}
       REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   rollback-staging:
@@ -238,11 +237,10 @@ jobs:
     uses: ./.github/workflows/reusable-deploy.yml
     with:
       environment: production
-      deploy_hook_secret: RENDER_DEPLOY_HOOK
-      health_url: ${{ secrets.PRODUCTION_URL }}
       strategy: blue-green
     secrets:
       DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+      HEALTH_URL: ${{ secrets.PRODUCTION_URL }}
       REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   rollback-production:
