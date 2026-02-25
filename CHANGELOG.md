@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.1.0](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.4...v1.1.0) (2026-02-25)
+
+
+### Features
+
+* **api:** add X-Request-ID middleware for log correlation ([4de12b4](https://github.com/lootopia-les-3-dev/todo-api-node/commit/4de12b4facea8469efaf644f3459b01dcc2fddf7))
+
+
+### Bug Fixes
+
+* **api:** import randomUUID from crypto to fix lint error ([89f9e9b](https://github.com/lootopia-les-3-dev/todo-api-node/commit/89f9e9be8a0ac5831b356a918c7139508d84eaac))
+* **ci:** chmod before rm to handle read-only pnpm cache, add NODE_OPTIONS for ESM jest ([5509b6b](https://github.com/lootopia-les-3-dev/todo-api-node/commit/5509b6bd88b1af764aecd41827d0c80978411d44))
+* fast ci v6 ([#38](https://github.com/lootopia-les-3-dev/todo-api-node/issues/38)) ([f12d564](https://github.com/lootopia-les-3-dev/todo-api-node/commit/f12d5646796efd9931749b6d3c2b49d2c11de6f0))
+* fast ci v7 ([ca55b2f](https://github.com/lootopia-les-3-dev/todo-api-node/commit/ca55b2fc35784d41e23a8904560ab58c0f0a4b35))
+* **husky:** skip prepare script in CI and production Docker build ([82e0d85](https://github.com/lootopia-les-3-dev/todo-api-node/commit/82e0d858ab7e0897816b84cbc5d3e29b16253a5b))
+
 ## [1.0.4](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.3...v1.0.4) (2026-02-25)
 
 
