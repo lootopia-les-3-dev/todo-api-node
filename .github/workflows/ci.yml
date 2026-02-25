@@ -74,7 +74,7 @@ jobs:
             chmod +x codecov
             mv codecov "$CODECOV_BIN"
           fi
-          "$CODECOV_BIN" upload-process --fail-on-error -t "${{ secrets.CODECOV_TOKEN }}" -f coverage/lcov.info
+          "$CODECOV_BIN" upload-process -t "${{ secrets.CODECOV_TOKEN }}" -f coverage/lcov.info || true
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
