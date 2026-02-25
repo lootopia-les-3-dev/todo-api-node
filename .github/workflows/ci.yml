@@ -65,7 +65,7 @@ jobs:
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Run ${{ matrix.suite }} tests
-        run: pnpm exec jest tests/${{ matrix.suite }}.test.js --coverage --coverageReporters=lcov --coverageThreshold='{}' --forceExit --detectOpenHandles
+        run: pnpm exec jest tests/${{ matrix.suite }}.test.js --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
       - name: Upload coverage shard
         uses: actions/upload-artifact@v6
         with:
