@@ -1,8 +1,9 @@
+import { describe, it, expect } from "@jest/globals"
+import request from "supertest"
+import app from "../app.js"
+
 process.env.NODE_ENV = "test"
 process.env.DB_PATH = ":memory-test:"
-
-const request = require("supertest")
-const app = require("../app")
 
 describe("Todo API", () => {
   describe("GET /health", () => {

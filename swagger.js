@@ -1,4 +1,4 @@
-const swaggerJsdoc = require("swagger-jsdoc")
+import swaggerJsdoc from "swagger-jsdoc"
 
 /**
  * swagger-jsdoc configuration.
@@ -292,4 +292,4 @@ const options = {
   apis: ["./app.js", "./routes/*.js"],
 }
 
-module.exports = swaggerJsdoc(options)
+export default swaggerJsdoc(options)

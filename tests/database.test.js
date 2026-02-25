@@ -1,14 +1,17 @@
 // Tests for database.js persistence and error paths
 
-const path = require("path")
-const os = require("os")
-const fs = require("fs")
+import { describe, it, expect, afterEach } from "@jest/globals"
+import path from "path"
+import os from "os"
+import fs from "fs"
+import { fileURLToPath } from "url"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 describe("database module", () => {
   let tmpDb
 
   afterEach(() => {
-    jest.resetModules()
     if (tmpDb && fs.existsSync(tmpDb)) {
       fs.unlinkSync(tmpDb)
       tmpDb = null
@@ -18,7 +21,7 @@ describe("database module", () => {
 
   it("creates a new database when no file exists", async () => {
     process.env.DB_PATH = path.join(os.tmpdir(), `todo-new-${Date.now()}.db`)
-    const { getDb } = require("../database/database")
+    const { getDb } = await import(`../database/database.js?t=${Date.now()}`)
     const db = await getDb()
     expect(db).toBeDefined()
     const rows = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name='todos'")
@@ -30,17 +33,17 @@ describe("database module", () => {
 
     // Write a DB file
     process.env.DB_PATH = tmpDb
-    const { getDb: getDb1, saveDb: saveDb1 } = require("../database/database")
+    const t1 = Date.now()
+    const { getDb: getDb1, saveDb: saveDb1 } = await import(`../database/database.js?t=${t1}`)
     const db1 = await getDb1()
     db1.run("INSERT INTO todos (title, description, status) VALUES (?, ?, ?)", [
       "persisted-todo", null, "pending",
     ])
     await saveDb1()
 
-    // Reload from disk in a fresh module
-    jest.resetModules()
+    // Reload from disk in a fresh module (different cache-busting query string)
     process.env.DB_PATH = tmpDb
-    const { getDb: getDb2 } = require("../database/database")
+    const { getDb: getDb2 } = await import(`../database/database.js?t=${t1 + 1}`)
     const db2 = await getDb2()
     const rows = db2.exec("SELECT * FROM todos WHERE title = 'persisted-todo'")
     expect(rows.length).toBeGreaterThan(0)
@@ -48,12 +51,10 @@ describe("database module", () => {
   })
 
   it("saveDb throws a descriptive error when write fails", async () => {
-    process.env.DB_PATH = path.join(os.tmpdir(), `todo-err-${Date.now()}.db`)
-    const fsp = require("fs/promises")
-    jest.spyOn(fsp, "writeFile").mockRejectedValueOnce(new Error("disk full"))
-
-    const { getDb, saveDb } = require("../database/database")
+    // Use a path inside a non-existent directory to force a write error
+    process.env.DB_PATH = path.join(os.tmpdir(), `nonexistent-${Date.now()}`, "todo.db")
+    const { getDb, saveDb } = await import(`../database/database.js?t=${Date.now()}`)
     await getDb()
-    await expect(saveDb()).rejects.toThrow("Failed to save database: disk full")
+    await expect(saveDb()).rejects.toThrow("Failed to save database:")
   })
 })
