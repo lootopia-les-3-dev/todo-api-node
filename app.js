@@ -1,5 +1,6 @@
 require("dotenv").config()
 
+const { randomUUID } = require("crypto")
 const express = require("express")
 const helmet = require("helmet")
 const morgan = require("morgan")
@@ -14,7 +15,7 @@ app.use(helmet())
 
 // Attach a unique request ID to every request for log correlation
 app.use((req, res, next) => {
-  const id = req.headers["x-request-id"] || crypto.randomUUID()
+  const id = req.headers["x-request-id"] || randomUUID()
   req.id = id
   res.setHeader("X-Request-ID", id)
   next()
