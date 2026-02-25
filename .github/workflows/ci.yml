@@ -74,7 +74,6 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -144,7 +143,6 @@ jobs:
 
   docker-build:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     steps:
       - uses: actions/checkout@v6
@@ -166,7 +164,7 @@ jobs:
 
   docker-push:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [docker-build, security, sonarcloud]
+    needs: [docker-build, lint, test, security, sonarcloud]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
