@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.3...v1.0.4) (2026-02-25)
+
+
+### Bug Fixes
+
+* changelog in ci for 1 trigger ([#36](https://github.com/lootopia-les-3-dev/todo-api-node/issues/36)) ([29b2231](https://github.com/lootopia-les-3-dev/todo-api-node/commit/29b2231142a855cc9d6b7a0e0f8bd19de8e3b350))
+
 ## [1.0.3](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.2...v1.0.3) (2026-02-25)
 
 
