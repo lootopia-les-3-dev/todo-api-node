@@ -1,6 +1,6 @@
-const { Router } = require("express")
-const { z } = require("zod")
-const { getDb, saveDb } = require("../database/database")
+import { Router } from "express"
+import { z } from "zod"
+import { getDb, saveDb } from "../database/database.js"
 
 const router = Router()
 
@@ -635,4 +635,4 @@ router.delete("/:id", async (req, res, next) => {
   }
 })
 
-module.exports = router
+export default router

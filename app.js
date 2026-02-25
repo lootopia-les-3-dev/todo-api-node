@@ -1,12 +1,13 @@
-require("dotenv").config()
+import "dotenv/config"
 
-const express = require("express")
-const helmet = require("helmet")
-const morgan = require("morgan")
-const rateLimit = require("express-rate-limit")
-const swaggerUi = require("swagger-ui-express")
-const swaggerSpec = require("./swagger")
-const todoRouter = require("./routes/todo")
+import { randomUUID } from "crypto"
+import express from "express"
+import helmet from "helmet"
+import morgan from "morgan"
+import rateLimit from "express-rate-limit"
+import swaggerUi from "swagger-ui-express"
+import swaggerSpec from "./swagger.js"
+import todoRouter from "./routes/todo.js"
 
 const app = express()
 
@@ -14,7 +15,7 @@ app.use(helmet())
 
 // Attach a unique request ID to every request for log correlation
 app.use((req, res, next) => {
-  const id = req.headers["x-request-id"] || crypto.randomUUID()
+  const id = req.headers["x-request-id"] || randomUUID()
   req.id = id
   res.setHeader("X-Request-ID", id)
   next()
@@ -132,9 +133,11 @@ app.use((err, _req, res, _next) => {
 
 const PORT = parseInt(process.env.PORT) || 3000
 
-if (require.main === module) {
+// Start the server only when this file is the entry point (not during tests)
+const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))
+if (isMain) {
   // eslint-disable-next-line no-console
   app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
 }
 
-module.exports = app
+export default app
