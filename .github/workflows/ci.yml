@@ -200,3 +200,15 @@ jobs:
     steps:
       - name: Deploy to production
         run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+
+  release-please:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          release-type: node
