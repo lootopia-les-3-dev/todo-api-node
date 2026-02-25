@@ -33,7 +33,7 @@ jobs:
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
-            rm -rf "$CACHE_DIR"
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR"
@@ -59,14 +59,14 @@ jobs:
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
-            rm -rf "$CACHE_DIR"
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Run tests
-        run: pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
+        run: NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
       - name: Upload to Codecov
         run: |
           if [ ! -f "$CODECOV_BIN" ]; then
@@ -94,7 +94,7 @@ jobs:
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
-            rm -rf "$CACHE_DIR"
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR"
