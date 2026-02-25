@@ -78,6 +78,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
+      - name: Use cached Node 20
+        run: echo "$NODE_DIR/bin" >> $GITHUB_PATH
       - name: Start server
         run: node app.js &
         env:
