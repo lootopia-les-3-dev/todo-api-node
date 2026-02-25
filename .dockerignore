@@ -1,0 +1,11 @@
+node_modules
+coverage
+.git
+.github
+tests
+*.test.js
+*.md
+.env*
+docs
+sonar-project.properties
+eslint.config.js

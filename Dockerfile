@@ -1,15 +1,11 @@
-FROM node:20-alpine AS base
-ENV PNPM_HOME="/pnpm"
-ENV PATH="$PNPM_HOME:$PATH"
-RUN corepack enable
-
-FROM base AS deps
+FROM node:20-alpine AS deps
 WORKDIR /app
+RUN npm install -g pnpm@9 --prefer-offline 2>/dev/null || npm install -g pnpm@9
 COPY package.json pnpm-lock.yaml ./
-RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prod
+RUN --mount=type=cache,id=pnpm-store,target=/root/.local/share/pnpm/store \
+    pnpm install --frozen-lockfile --prod --prefer-offline
 
-FROM base AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=deps --chown=appuser:appgroup /app/node_modules ./node_modules
