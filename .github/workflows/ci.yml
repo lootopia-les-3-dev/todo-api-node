@@ -8,11 +8,12 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
-  PNPM_STORE: /tmp/runner-cache/pnpm-store
   NODE_MODULES_CACHE: /tmp/runner-cache/node_modules
   DOCKER_CACHE: /tmp/runner-cache/docker-buildcache
   K6_BIN: /tmp/runner-cache/k6
   SONAR_SCANNER: /tmp/runner-cache/sonar-scanner
+  TRIVY_CACHE: /tmp/runner-cache/trivy
+  RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
 
 jobs:
   lint:
@@ -41,9 +42,6 @@ jobs:
 
   test:
     runs-on: [self-hosted, dokploy-runner]
-    strategy:
-      matrix:
-        suite: [todo, database, error-handler, error-handler-prod]
     steps:
       - uses: actions/checkout@v6
       - uses: pnpm/action-setup@v4
@@ -63,30 +61,11 @@ jobs:
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
-      - name: Run ${{ matrix.suite }} tests
-        run: pnpm exec jest tests/${{ matrix.suite }}.test.js --coverage --coverageReporters=lcov --coverageThreshold='{}' --forceExit --detectOpenHandles
-      - name: Upload coverage shard
-        uses: actions/upload-artifact@v6
-        with:
-          name: coverage-${{ matrix.suite }}
-          path: coverage/lcov.info
-          retention-days: 1
-
-  test-merge:
-    runs-on: [self-hosted, dokploy-runner]
-    needs: test
-    steps:
-      - name: Download all coverage shards
-        uses: actions/download-artifact@v7
-        with:
-          pattern: coverage-*
-          path: coverage-shards
-      - name: Merge lcov files and persist to shared volume
-        run: |
-          mkdir -p coverage
-          cat coverage-shards/*/lcov.info > coverage/lcov.info
-          cp coverage/lcov.info /tmp/runner-cache/lcov-latest.info
-      - name: Upload merged coverage
+      - name: Run tests
+        run: pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache --forceExit --detectOpenHandles
+      - name: Persist coverage to shared volume
+        run: cp coverage/lcov.info /tmp/runner-cache/lcov-latest.info
+      - name: Upload coverage
         uses: actions/upload-artifact@v6
         with:
           name: coverage
@@ -95,7 +74,6 @@ jobs:
 
   perf:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
     continue-on-error: true
     steps:
       - uses: actions/checkout@v6
@@ -116,6 +94,14 @@ jobs:
             cp -a node_modules/. "$CACHE_DIR"
             touch "$CACHE_DIR/.cache-ok"
           fi
+      - name: Start server
+        run: node app.js &
+        env:
+          PORT: 3000
+          NODE_ENV: production
+          DB_PATH: ./perf-test.db
+      - name: Wait for server
+        run: until curl -sf http://localhost:3000/health; do sleep 0.2; done
       - name: Install k6
         run: |
           if [ ! -f "$K6_BIN" ]; then
@@ -124,18 +110,6 @@ jobs:
             mv k6 "$K6_BIN"
           fi
           sudo ln -sf "$K6_BIN" /usr/local/bin/k6
-      - name: Start server
-        run: node app.js &
-        env:
-          PORT: 3000
-          NODE_ENV: production
-          DB_PATH: ./perf-test.db
-      - name: Wait for server
-        run: |
-          for i in $(seq 1 15); do
-            curl -sf http://localhost:3000/health && break
-            sleep 1
-          done
       - name: Run k6 load tests
         run: k6 run tests/load.js
 
@@ -143,27 +117,22 @@ jobs:
     runs-on: [self-hosted, dokploy-runner]
     steps:
       - uses: actions/checkout@v6
-      - name: Cache Trivy DB
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/trivy
-          key: trivy-db-${{ github.run_id }}
-          restore-keys: trivy-db-
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+        env:
+          TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
   sonarcloud:
     name: SonarCloud Quality Gate
     runs-on: [self-hosted, dokploy-runner]
-    continue-on-error: true
     steps:
       - uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          fetch-depth: 1
       - name: Restore coverage from shared volume
         run: |
           mkdir -p coverage
@@ -186,13 +155,9 @@ jobs:
           SONAR_HOST_URL: https://sonarcloud.io
           SONAR_USER_HOME: /tmp/runner-cache/sonar-home
 
-  docker:
+  docker-build:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-    permissions:
-      contents: read
-      packages: write
     steps:
       - uses: actions/checkout@v6
       - name: Set up Docker Buildx
@@ -200,26 +165,43 @@ jobs:
         with:
           driver: docker-container
           driver-opts: network=host
+      - name: Build and export image tar
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          outputs: type=docker,dest=${{ env.DOCKER_CACHE }}/image-${{ github.sha }}.tar
+          cache-from: type=local,src=${{ env.DOCKER_CACHE }}
+          cache-to: type=local,dest=${{ env.DOCKER_CACHE }},mode=min
+          provenance: false
+          sbom: false
+
+  docker-push:
+    runs-on: [self-hosted, dokploy-runner]
+    needs: [docker-build, lint, test, security, sonarcloud]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      packages: write
+    steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
-          cache-from: type=local,src=${{ env.DOCKER_CACHE }}
-          cache-to: type=local,dest=${{ env.DOCKER_CACHE }},mode=min
-          provenance: false
-          sbom: false
+      - name: Load, tag and push image
+        run: |
+          docker load -i ${{ env.DOCKER_CACHE }}/image-${{ github.sha }}.tar
+          IMAGE_ID=$(docker images -q | head -1)
+          TAG=${{ github.ref == 'refs/heads/main' && 'latest' || 'staging' }}
+          docker tag "$IMAGE_ID" ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:$TAG
+          rm -f ${{ env.DOCKER_CACHE }}/image-${{ github.sha }}.tar
 
   deploy-staging:
     runs-on: [self-hosted, dokploy-runner]
-    needs: docker
+    needs: docker-push
     if: github.ref == 'refs/heads/develop'
     environment:
       name: staging
@@ -229,7 +211,7 @@ jobs:
 
   deploy:
     runs-on: [self-hosted, dokploy-runner]
-    needs: docker
+    needs: docker-push
     if: github.ref == 'refs/heads/main'
     environment:
       name: production

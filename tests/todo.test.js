@@ -2,16 +2,11 @@ process.env.NODE_ENV = "test"
 process.env.DB_PATH = ":memory-test:"
 
 const request = require("supertest")
-
-const getApp = () => {
-  jest.resetModules()
-  return require("../app")
-}
+const app = require("../app")
 
 describe("Todo API", () => {
   describe("GET /health", () => {
     it("returns 200 with status ok", async () => {
-      const app = getApp()
       const res = await request(app).get("/health")
       expect(res.status).toBe(200)
       expect(res.body.status).toBe("ok")
@@ -20,7 +15,6 @@ describe("Todo API", () => {
 
   describe("GET /", () => {
     it("returns welcome message", async () => {
-      const app = getApp()
       const res = await request(app).get("/")
       expect(res.status).toBe(200)
       expect(res.body.message).toBeDefined()
@@ -29,13 +23,11 @@ describe("Todo API", () => {
 
   describe("CORS", () => {
     it("handles OPTIONS preflight", async () => {
-      const app = getApp()
       const res = await request(app).options("/todos")
       expect(res.status).toBe(204)
     })
 
     it("sets CORS headers", async () => {
-      const app = getApp()
       const res = await request(app).get("/")
       expect(res.headers["access-control-allow-origin"]).toBeDefined()
     })
@@ -43,7 +35,6 @@ describe("Todo API", () => {
 
   describe("POST /todos", () => {
     it("creates a todo with valid input", async () => {
-      const app = getApp()
       const res = await request(app)
         .post("/todos")
         .send({ title: "Buy groceries" })
@@ -53,7 +44,6 @@ describe("Todo API", () => {
     })
 
     it("creates a todo with all fields", async () => {
-      const app = getApp()
       const res = await request(app)
         .post("/todos")
         .send({ title: "Task", description: "Details", status: "in-progress" })
@@ -63,19 +53,16 @@ describe("Todo API", () => {
     })
 
     it("returns 400 when title is missing", async () => {
-      const app = getApp()
       const res = await request(app).post("/todos").send({})
       expect(res.status).toBe(400)
     })
 
     it("returns 400 when title is empty string", async () => {
-      const app = getApp()
       const res = await request(app).post("/todos").send({ title: "" })
       expect(res.status).toBe(400)
     })
 
     it("returns 400 when status is invalid", async () => {
-      const app = getApp()
       const res = await request(app)
         .post("/todos")
         .send({ title: "Test", status: "invalid" })
@@ -83,7 +70,6 @@ describe("Todo API", () => {
     })
 
     it("returns 400 when title exceeds 200 chars", async () => {
-      const app = getApp()
       const res = await request(app)
         .post("/todos")
         .send({ title: "x".repeat(201) })
@@ -93,20 +79,17 @@ describe("Todo API", () => {
 
   describe("GET /todos", () => {
     it("returns an array", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos")
       expect(res.status).toBe(200)
       expect(Array.isArray(res.body)).toBe(true)
     })
 
     it("returns 400 when limit exceeds 100", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos?limit=101")
       expect(res.status).toBe(400)
     })
 
     it("respects skip and limit pagination", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos?skip=0&limit=5")
       expect(res.status).toBe(200)
       expect(Array.isArray(res.body)).toBe(true)
@@ -115,7 +98,6 @@ describe("Todo API", () => {
 
   describe("GET /todos/search", () => {
     it("returns matching todos", async () => {
-      const app = getApp()
       await request(app).post("/todos").send({ title: "searchable item" })
       const res = await request(app).get("/todos/search?q=searchable")
       expect(res.status).toBe(200)
@@ -123,14 +105,12 @@ describe("Todo API", () => {
     })
 
     it("returns empty array when no match", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos/search?q=zzznomatch999")
       expect(res.status).toBe(200)
       expect(res.body).toEqual([])
     })
 
     it("returns 400 when q is missing", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos/search")
       expect(res.status).toBe(400)
     })
@@ -138,7 +118,6 @@ describe("Todo API", () => {
 
   describe("GET /todos/:id", () => {
     it("returns a todo by id", async () => {
-      const app = getApp()
       const create = await request(app).post("/todos").send({ title: "Fetch me" })
       const { id } = create.body
       const res = await request(app).get(`/todos/${id}`)
@@ -148,7 +127,6 @@ describe("Todo API", () => {
     })
 
     it("returns 404 for nonexistent id", async () => {
-      const app = getApp()
       const res = await request(app).get("/todos/999999")
       expect(res.status).toBe(404)
     })
@@ -156,7 +134,6 @@ describe("Todo API", () => {
 
   describe("PUT /todos/:id", () => {
     it("updates a todo successfully", async () => {
-      const app = getApp()
       const create = await request(app).post("/todos").send({ title: "Original" })
       const { id } = create.body
       const res = await request(app)
@@ -168,7 +145,6 @@ describe("Todo API", () => {
     })
 
     it("keeps existing fields when doing partial update", async () => {
-      const app = getApp()
       const create = await request(app)
         .post("/todos")
         .send({ title: "Keep me", description: "my desc", status: "pending" })
@@ -181,7 +157,6 @@ describe("Todo API", () => {
     })
 
     it("returns 404 for nonexistent id", async () => {
-      const app = getApp()
       const res = await request(app)
         .put("/todos/999999")
         .send({ title: "Updated" })
@@ -189,7 +164,6 @@ describe("Todo API", () => {
     })
 
     it("returns 400 for invalid status", async () => {
-      const app = getApp()
       const create = await request(app).post("/todos").send({ title: "Original" })
       const { id } = create.body
       const res = await request(app)
@@ -201,7 +175,6 @@ describe("Todo API", () => {
 
   describe("DELETE /todos/:id", () => {
     it("deletes a todo successfully", async () => {
-      const app = getApp()
       const create = await request(app).post("/todos").send({ title: "Delete me" })
       const { id } = create.body
       const del = await request(app).delete(`/todos/${id}`)
@@ -212,7 +185,6 @@ describe("Todo API", () => {
     })
 
     it("returns 404 for nonexistent id", async () => {
-      const app = getApp()
       const res = await request(app).delete("/todos/999999")
       expect(res.status).toBe(404)
     })
@@ -220,7 +192,6 @@ describe("Todo API", () => {
 
   describe("Unknown routes", () => {
     it("returns 404 for unknown routes", async () => {
-      const app = getApp()
       const res = await request(app).get("/unknown")
       expect(res.status).toBe(404)
     })
