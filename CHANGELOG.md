@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.3](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.2...v1.0.3) (2026-02-25)
+
+
+### Bug Fixes
+
+* **ci:** restore node_modules in perf job, required to start server ([4b00df3](https://github.com/lootopia-les-3-dev/todo-api-node/commit/4b00df3bc5a02f470b657867fadb758f35f9aa47))
+* **ci:** restore setup-node in perf job, RUNNER_TOOL_CACHE handles caching ([00c1180](https://github.com/lootopia-les-3-dev/todo-api-node/commit/00c1180bd4e8b3dce736385cc8d2b59450fe5b9e))
+* **ci:** revert to docker-container driver, export image as tar for reuse ([f92d6b1](https://github.com/lootopia-les-3-dev/todo-api-node/commit/f92d6b1d187d43212e260daf8e365aa6ca5bc004))
+* **ci:** use cached Node 20 in perf job instead of system Node ([05175f3](https://github.com/lootopia-les-3-dev/todo-api-node/commit/05175f398f7aed09fd6120bc63219fbad1a27d8c))
+
+
+### Performance Improvements
+
+* **ci:** add Jest cache on shared volume and run tests in band ([0468aee](https://github.com/lootopia-les-3-dev/todo-api-node/commit/0468aee1128c063d17929f3a834ab317744c7184))
+* **ci:** drop setup-node from perf job, use docker daemon for builds ([55c7985](https://github.com/lootopia-les-3-dev/todo-api-node/commit/55c79858b2d925c81da43137476171dc91f9d8f6))
+* **ci:** merge 4 test shards into one job, drop test-merge job ([d93b582](https://github.com/lootopia-les-3-dev/todo-api-node/commit/d93b5829c37064639ecfb9f5284ccf8e10bb982f))
+* **ci:** run perf and docker-build immediately at pipeline start ([094a68b](https://github.com/lootopia-les-3-dev/todo-api-node/commit/094a68b8024355c7a0c7cad20a6878bdb1f476b4))
+* remove pnpm/setup-node/node_modules steps — node is already in ([55c7985](https://github.com/lootopia-les-3-dev/todo-api-node/commit/55c79858b2d925c81da43137476171dc91f9d8f6))
+* **sonar:** exclude test files from analysis ([6614a74](https://github.com/lootopia-les-3-dev/todo-api-node/commit/6614a74cc65abe0b1bb69682d5eeef4f92669bcb))
+* **tests:** share single app instance across all todo tests ([6da80c2](https://github.com/lootopia-les-3-dev/todo-api-node/commit/6da80c23f852248918da504d7832ab81a93b9311))
+
 ## [1.0.2](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.1...v1.0.2) (2026-02-24)
 
 
