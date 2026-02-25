@@ -1,11 +1,6 @@
-const js = require("@eslint/js")
+import js from "@eslint/js"
 
 const nodeGlobals = {
-  require: "readonly",
-  module: "readonly",
-  exports: "readonly",
-  __dirname: "readonly",
-  __filename: "readonly",
   process: "readonly",
   console: "readonly",
   Buffer: "readonly",
@@ -29,14 +24,14 @@ const jestGlobals = {
   jest: "readonly",
 }
 
-module.exports = [
+export default [
   js.configs.recommended,
   {
     files: ["**/*.js"],
     ignores: ["node_modules/**", "coverage/**", "tests/load.js"],
     languageOptions: {
       ecmaVersion: 2022,
-      sourceType: "commonjs",
+      sourceType: "module",
       globals: nodeGlobals,
     },
     rules: {
