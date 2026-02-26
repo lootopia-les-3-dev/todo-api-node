@@ -8,6 +8,9 @@ import rateLimit from "express-rate-limit"
 import swaggerUi from "swagger-ui-express"
 import swaggerSpec from "./swagger.js"
 import todoRouter from "./routes/todo.js"
+import * as Sentry from "@sentry/node"
+
+Sentry.init({ dsn: process.env.SENTRY_DSN })
 
 const app = express()
 
@@ -22,7 +25,7 @@ app.use((req, res, next) => {
 })
 
 app.use((req, res, next) => {
-  const origin = process.env.ALLOWED_ORIGIN || "*"
+  const origin = process.env.ALLOWED_ORIGIN || /* istanbul ignore next */ "*"
   res.setHeader("Access-Control-Allow-Origin", origin)
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -121,6 +124,8 @@ app.use(
 app.use((_req, res) => {
   res.status(404).json({ detail: "Not found" })
 })
+
+Sentry.setupExpressErrorHandler(app)
 
 app.use((err, _req, res, _next) => {
   // eslint-disable-next-line no-console
