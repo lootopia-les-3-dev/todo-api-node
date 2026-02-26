@@ -34,10 +34,10 @@ jobs:
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
-            rm -f node_modules
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Lint
@@ -66,10 +66,10 @@ jobs:
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
-            rm -f node_modules
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Run tests
@@ -103,10 +103,10 @@ jobs:
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
-            rm -f node_modules
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Start server
