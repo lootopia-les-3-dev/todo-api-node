@@ -28,15 +28,16 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Lint
@@ -59,15 +60,16 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
+          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Run tests
@@ -95,15 +97,16 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
           if [ -f "$CACHE_DIR/.cache-ok" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Start server

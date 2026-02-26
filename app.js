@@ -45,6 +45,19 @@ app.use(
 app.use(morgan("combined"))
 app.use(express.json())
 
+// Metrics middleware — /telemetry excluded to avoid counting Prometheus scrapes
+app.use((req, res, next) => {
+  if (req.path === "/telemetry") return next()
+  const end = httpRequestDuration.startTimer()
+  res.on("finish", () => {
+    const route = req.route?.path ?? req.path
+    const labels = { method: req.method, route, status: res.statusCode }
+    httpRequestCounter.inc(labels)
+    end(labels)
+  })
+  next()
+})
+
 /**
  * @swagger
  * /:
@@ -106,6 +119,35 @@ app.get("/", (_req, res) => {
  */
 app.get("/health", (_req, res) => {
   res.json({ status: "ok", uptime: process.uptime() })
+})
+
+/**
+ * @swagger
+ * /telemetry:
+ *   get:
+ *     tags:
+ *       - System
+ *     summary: Métriques Prometheus
+ *     description: |
+ *       Expose les métriques applicatives au format Prometheus (text/plain).
+ *       Scrappé par Prometheus et visualisé dans Grafana.
+ *       Inclut les métriques système (CPU, mémoire, event loop) et les compteurs HTTP.
+ *     operationId: getTelemetry
+ *     responses:
+ *       200:
+ *         description: Métriques au format Prometheus
+ *         content:
+ *           text/plain:
+ *             schema:
+ *               type: string
+ *               example: |
+ *                 # HELP http_requests_total Total number of HTTP requests
+ *                 # TYPE http_requests_total counter
+ *                 http_requests_total{method="GET",route="/health",status="200"} 42
+ */
+app.get("/telemetry", async (_req, res) => {
+  res.set("Content-Type", register.contentType)
+  res.send(await register.metrics())
 })
 
 app.use("/todos", todoRouter)
