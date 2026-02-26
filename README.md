@@ -13,6 +13,7 @@ A REST API for managing todos, built with Express.js and SQLite.
 - **Database**: SQLite (sql.js)
 - **Docs**: Swagger UI (`/docs`)
 - **CI/CD**: GitHub Actions → GHCR → Render
+- **Monitoring**: Prometheus (`/telemetry`) + Grafana
 
 ## Setup
 
