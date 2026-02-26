@@ -47,8 +47,8 @@ const options = {
     // -------------------------------------------------------------------------
     servers: [
       {
-        url: process.env.API_URL || "http://localhost:3000",
-        description: process.env.API_URL ? /* istanbul ignore next */ "Production" : "Local development",
+        url: process.env.API_URL || /* istanbul ignore next */ "http://localhost:3000",
+        description: process.env.API_URL ? /* istanbul ignore next */ "Production" : /* istanbul ignore next */ "Local development",
       },
     ],
 

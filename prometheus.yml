@@ -1,0 +1,9 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: "todo-api"
+    static_configs:
+      - targets: ["host.docker.internal:3000"]  # local
+        # - targets: ["ton-api.lootopia.io"]      # production (décommenter)
+    metrics_path: /telemetry
