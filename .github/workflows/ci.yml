@@ -4,6 +4,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (staging or production)"
+        required: false
+        default: "staging"
 
 env:
   REGISTRY: ghcr.io

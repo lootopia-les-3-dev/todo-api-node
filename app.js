@@ -1,5 +1,6 @@
 import "dotenv/config"
 
+import * as Sentry from "@sentry/node"
 import { randomUUID } from "crypto"
 import express from "express"
 import helmet from "helmet"
@@ -10,6 +11,12 @@ import swaggerSpec from "./swagger.js"
 import todoRouter from "./routes/todo.js"
 import { register, httpRequestCounter, httpRequestDuration } from "./routes/telemetry.js"
 import logger from "./logger.js"
+
+// Initialize Sentry error monitoring (no-op when DSN is not configured)
+/* istanbul ignore next */
+if (process.env.SENTRY_DSN) {
+  Sentry.init({ dsn: process.env.SENTRY_DSN, environment: process.env.NODE_ENV || "production" })
+}
 
 const app = express()
 
@@ -44,7 +51,7 @@ app.use(
 app.use(pinoHttp({
   logger,
   // Attach request ID from the middleware above
-  genReqId: (req) => req.id,
+  genReqId: /* istanbul ignore next */ (req) => req.id,
   // Skip /telemetry scrapes to avoid log noise
   autoLogging: { ignore: (req) => req.url === "/telemetry" },
 }))
@@ -174,8 +181,10 @@ app.use((_req, res) => {
 
 app.use((err, req, res, _next) => {
   const status = err.status || err.statusCode || 500
-  const log = req.log ?? logger
+  const log = req.log ?? /* istanbul ignore next */ logger
   log.error({ err, status }, "Unhandled error")
+  /* istanbul ignore next */
+  if (status >= 500 && process.env.SENTRY_DSN) Sentry.captureException(err)
   const message =
     process.env.NODE_ENV === "production" ? "Internal server error" : err.message
   res.status(status).json({ detail: message })

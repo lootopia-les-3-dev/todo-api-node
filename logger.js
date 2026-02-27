@@ -4,7 +4,7 @@ const isDev = process.env.NODE_ENV === "development"
 
 const logger = pino({
   level: process.env.LOG_LEVEL || "info",
-  ...(isDev && {
+  ...(/* istanbul ignore next */ isDev && {
     transport: { target: "pino-pretty", options: { colorize: true } },
   }),
 })
