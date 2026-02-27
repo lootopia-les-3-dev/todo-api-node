@@ -14,6 +14,7 @@ env:
   TRIVY_CACHE: /tmp/runner-cache/trivy
   RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
   CODECOV_BIN: /tmp/runner-cache/codecov
+  PNPM_STORE_PATH: /tmp/runner-cache/pnpm-store
 
 jobs:
   lint:
@@ -23,6 +24,8 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
+      - name: Configure pnpm store
+        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -55,6 +58,8 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
+      - name: Configure pnpm store
+        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
@@ -91,6 +96,8 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
+      - name: Configure pnpm store
+        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -110,11 +117,21 @@ jobs:
           fi
       - name: Generate OpenAPI spec
         run: |
-          node --input-type=module - <<'JSEOF'
+          SPEC_KEY="openapi-${{ hashFiles('swagger.js', 'routes/*.js', 'app.js') }}"
+          SPEC_CACHE="$NODE_MODULES_CACHE/../openapi-cache/$SPEC_KEY.json"
+          mkdir -p "$(dirname "$SPEC_CACHE")"
+          if [ -f "$SPEC_CACHE" ]; then
+            cp "$SPEC_CACHE" openapi.json
+            echo "OpenAPI spec restored from cache ($SPEC_KEY)"
+          else
+            node --input-type=module - <<'JSEOF'
           import spec from './swagger.js'
           import { writeFileSync } from 'fs'
           writeFileSync('openapi.json', JSON.stringify(spec, null, 2))
           JSEOF
+            cp openapi.json "$SPEC_CACHE"
+            echo "OpenAPI spec generated and cached ($SPEC_KEY)"
+          fi
       - name: Validate OpenAPI spec
         run: |
           node --input-type=module - <<'JSEOF'
@@ -139,6 +156,8 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
+      - name: Configure pnpm store
+        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -180,6 +199,8 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
+      - name: Configure pnpm store
+        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -222,12 +243,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           clean: false
+      - name: Warm Trivy DB cache
+        run: |
+          mkdir -p "$TRIVY_CACHE"
+          # Download DB only if older than 24h or missing
+          DB_FILE="$TRIVY_CACHE/db/trivy.db"
+          if [ ! -f "$DB_FILE" ] || [ "$(find "$DB_FILE" -mmin +1440 2>/dev/null | wc -l)" -gt 0 ]; then
+            docker run --rm -v "$TRIVY_CACHE:/root/.cache/trivy" \
+              aquasec/trivy:latest image --download-db-only --cache-dir /root/.cache/trivy || true
+          fi
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+          skip-db-update: true
+          skip-java-db-update: true
         env:
           TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
