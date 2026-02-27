@@ -55,10 +55,12 @@ jobs:
           curl -X POST "${{ secrets.DEPLOY_HOOK }}"
 
       - name: Wait for environment to be up
-        run: sleep 15
-
-      - name: Smoke test — health
-        run: curl -sf "${{ secrets.HEALTH_URL }}/health" | grep -q '"ok"'
+        run: |
+          for i in $(seq 1 12); do
+            curl -sf "${{ secrets.HEALTH_URL }}/health" | grep -q '"ok"' && exit 0
+            sleep 5
+          done
+          echo "Service did not become healthy after 1 minute" && exit 1
 
       - name: Smoke test — homepage responds
         run: curl -sf -o /dev/null -w "%{http_code}" "${{ secrets.HEALTH_URL }}" | grep -q "200"
