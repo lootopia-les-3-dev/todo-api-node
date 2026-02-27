@@ -4,6 +4,12 @@ on:
     branches: [main, develop]
   pull_request:
     branches: [main, develop]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment (staging or production)"
+        required: false
+        default: "staging"
 
 env:
   REGISTRY: ghcr.io
@@ -14,6 +20,7 @@ env:
   TRIVY_CACHE: /tmp/runner-cache/trivy
   RUNNER_TOOL_CACHE: /tmp/runner-cache/tool-cache
   CODECOV_BIN: /tmp/runner-cache/codecov
+  PNPM_STORE_PATH: /tmp/runner-cache/pnpm-store
 
 jobs:
   lint:
@@ -28,13 +35,14 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -60,13 +68,14 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -84,6 +93,119 @@ jobs:
           fi
           "$CODECOV_BIN" upload-process -t "${{ secrets.CODECOV_TOKEN }}" -f coverage/lcov.info || true
 
+  contract:
+    runs-on: [self-hosted, dokploy-runner]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          clean: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+            ln -sfn "$CACHE_DIR" node_modules
+          else
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Generate OpenAPI spec
+        run: |
+          SPEC_KEY="openapi-${{ hashFiles('swagger.js', 'routes/*.js', 'app.js') }}"
+          SPEC_CACHE="$NODE_MODULES_CACHE/../openapi-cache/$SPEC_KEY.json"
+          mkdir -p "$(dirname "$SPEC_CACHE")"
+          if [ -f "$SPEC_CACHE" ]; then
+            cp "$SPEC_CACHE" openapi.json
+            echo "OpenAPI spec restored from cache ($SPEC_KEY)"
+          else
+            node --input-type=module - <<'JSEOF'
+          import spec from './swagger.js'
+          import { writeFileSync } from 'fs'
+          writeFileSync('openapi.json', JSON.stringify(spec, null, 2))
+          JSEOF
+            cp openapi.json "$SPEC_CACHE"
+            echo "OpenAPI spec generated and cached ($SPEC_KEY)"
+          fi
+      - name: Validate OpenAPI spec
+        run: |
+          node --input-type=module - <<'JSEOF'
+          import { readFileSync } from 'fs'
+          const spec = JSON.parse(readFileSync('openapi.json', 'utf8'))
+          if (!spec.openapi) throw new Error('Missing openapi field')
+          if (!spec.info?.title) throw new Error('Missing info.title')
+          if (!spec.paths || Object.keys(spec.paths).length === 0) throw new Error('No paths defined')
+          const routes = Object.keys(spec.paths)
+          const required = ['/todos', '/health']
+          for (const r of required) {
+            if (!routes.some(p => p.startsWith(r))) throw new Error(`Missing route ${r} in spec`)
+          }
+          console.log(`OpenAPI spec valid — ${routes.length} paths, openapi: ${spec.openapi}`)
+          JSEOF
+
+  observability:
+    runs-on: [self-hosted, dokploy-runner]
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          clean: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+            ln -sfn "$CACHE_DIR" node_modules
+          else
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Start server
+        run: NODE_ENV=production PORT=3001 DB_PATH=./observability-test.db node app.js > /tmp/server.log 2>&1 &
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3001/health && exit 0
+            sleep 1
+          done
+          echo "Server did not start after 30s — logs:" && cat /tmp/server.log && exit 1
+      - name: Verify Prometheus metrics endpoint
+        run: |
+          METRICS=$(curl -sf http://localhost:3001/telemetry)
+          echo "$METRICS" | grep -q "http_requests_total" || (echo "FAIL: http_requests_total missing" && exit 1)
+          echo "$METRICS" | grep -q "http_request_duration_seconds" || (echo "FAIL: http_request_duration_seconds missing" && exit 1)
+          echo "$METRICS" | grep -q "process_cpu_seconds_total\|nodejs_" || (echo "FAIL: default node metrics missing" && exit 1)
+          echo "Observability OK — Prometheus endpoint exposes expected metrics"
+      - name: Verify structured JSON logging
+        run: |
+          # Trigger a request so pino-http emits a HTTP log line
+          curl -sf http://localhost:3001/health > /dev/null
+          sleep 0.2
+          # Filter on lines that contain "req" (pino-http HTTP log lines, not boot message)
+          LOG_LINE=$(grep '"req"' /tmp/server.log | head -1)
+          [ -n "$LOG_LINE" ] || (echo "FAIL: no HTTP log line found" && cat /tmp/server.log && exit 1)
+          echo "$LOG_LINE" | grep -q '"level"' || (echo "FAIL: log not JSON — missing 'level'" && exit 1)
+          echo "$LOG_LINE" | grep -q '"time"' || (echo "FAIL: log not JSON — missing 'time'" && exit 1)
+          echo "$LOG_LINE" | grep -q '"responseTime"' || (echo "FAIL: log not JSON — missing 'responseTime'" && exit 1)
+          echo "Structured logging OK — pino ndjson confirmed"
+
   perf:
     runs-on: [self-hosted, dokploy-runner]
     continue-on-error: true
@@ -97,26 +219,28 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
             touch "$CACHE_DIR/.cache-ok"
           fi
       - name: Start server
-        run: node app.js &
-        env:
-          PORT: 3000
-          NODE_ENV: production
-          DB_PATH: ./perf-test.db
+        run: NODE_ENV=production PORT=3000 DB_PATH=./perf-test.db node app.js > /tmp/perf-server.log 2>&1 &
       - name: Wait for server
-        run: until curl -sf http://localhost:3000/health; do sleep 0.2; done
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000/health && exit 0
+            sleep 1
+          done
+          echo "Server did not start after 30s — logs:" && cat /tmp/perf-server.log && exit 1
       - name: Install k6
         run: |
           if [ ! -f "$K6_BIN" ]; then
@@ -134,12 +258,23 @@ jobs:
       - uses: actions/checkout@v6
         with:
           clean: false
+      - name: Warm Trivy DB cache
+        run: |
+          mkdir -p "$TRIVY_CACHE"
+          # Download DB only if older than 24h or missing
+          DB_FILE="$TRIVY_CACHE/db/trivy.db"
+          if [ ! -f "$DB_FILE" ] || [ "$(find "$DB_FILE" -mmin +1440 2>/dev/null | wc -l)" -gt 0 ]; then
+            docker run --rm -v "$TRIVY_CACHE:/root/.cache/trivy" \
+              aquasec/trivy:latest image --download-db-only --cache-dir /root/.cache/trivy || true
+          fi
       - name: Security scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
+          skip-db-update: true
+          skip-java-db-update: true
         env:
           TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 
@@ -156,6 +291,7 @@ jobs:
           driver: docker-container
           driver-opts: network=host
           buildkitd-flags: --allow-insecure-entitlement network.host
+          keep-state: true
       - name: Build and export image tar
         uses: docker/build-push-action@v6
         with:
@@ -169,7 +305,7 @@ jobs:
 
   docker-push:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [docker-build, lint, test, security]
+    needs: [docker-build, lint, test, security, contract, observability]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
@@ -290,7 +426,7 @@ jobs:
 
   notify:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test, security, docker-push]
+    needs: [lint, test, security, contract, observability, docker-push]
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
       - name: Determine status
@@ -299,6 +435,8 @@ jobs:
           if [[ "${{ needs.lint.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
                 "${{ needs.security.result }}" == "success" && \
+                "${{ needs.contract.result }}" == "success" && \
+                "${{ needs.observability.result }}" == "success" && \
                 "${{ needs.docker-push.result }}" == "success" ]]; then
             echo "color=5763719" >> $GITHUB_OUTPUT
             echo "label=succes" >> $GITHUB_OUTPUT
@@ -315,7 +453,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"CI ${{ steps.status.outputs.label }} — ${{ github.ref_name }}\",
-                \"description\": \"Commit \`$SHORT_SHA\` par **${{ github.actor }}**\nlint: ${{ needs.lint.result }} | test: ${{ needs.test.result }} | security: ${{ needs.security.result }} | push: ${{ needs.docker-push.result }}\",
+                \"description\": \"Commit \`$SHORT_SHA\` par **${{ github.actor }}**\nlint: ${{ needs.lint.result }} | test: ${{ needs.test.result }} | security: ${{ needs.security.result }} | contract: ${{ needs.contract.result }} | observability: ${{ needs.observability.result }} | push: ${{ needs.docker-push.result }}\",
                 \"color\": ${{ steps.status.outputs.color }},
                 \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
               }]

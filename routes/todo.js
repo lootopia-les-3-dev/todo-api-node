@@ -129,8 +129,13 @@ const toArray = function(rows) {
  *                     - path: [q]
  *                       message: String must contain at least 1 character(s)
  */
+// Feature flag: FEATURE_TODO_SEARCH — enables the /todos/search endpoint.
+// Set FEATURE_TODO_SEARCH=true to activate; any other value (or unset) disables it.
+export const isSearchEnabled = () => process.env.FEATURE_TODO_SEARCH === "true"
+
 // GET /todos/search — must be before /:id to avoid route collision
 router.get("/search", async (req, res, next) => {
+  if (!isSearchEnabled()) return res.status(404).json({ detail: "Not found" })
   try {
     const parsed = searchSchema.safeParse(req.query)
     if (!parsed.success) {

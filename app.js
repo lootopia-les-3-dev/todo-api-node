@@ -1,9 +1,10 @@
 import "dotenv/config"
 
+import * as Sentry from "@sentry/node"
 import { randomUUID } from "crypto"
 import express from "express"
 import helmet from "helmet"
-import morgan from "morgan"
+import pinoHttp from "pino-http"
 import rateLimit from "express-rate-limit"
 import swaggerUi from "swagger-ui-express"
 import swaggerSpec from "./swagger.js"
@@ -43,7 +44,13 @@ app.use(
   }),
 )
 
-app.use(morgan("combined"))
+app.use(pinoHttp({
+  logger,
+  // Attach request ID from the middleware above
+  genReqId: /* istanbul ignore next */ (req) => req.id,
+  // Skip /telemetry scrapes to avoid log noise
+  autoLogging: { ignore: (req) => req.url === "/telemetry" },
+}))
 app.use(express.json())
 
 // Metrics middleware — /telemetry excluded to avoid counting Prometheus scrapes
@@ -174,6 +181,10 @@ app.use((err, _req, res, _next) => {
   // eslint-disable-next-line no-console
   console.error(err)
   const status = err.status || err.statusCode || 500
+  const log = req.log ?? /* istanbul ignore next */ logger
+  log.error({ err, status }, "Unhandled error")
+  /* istanbul ignore next */
+  if (status >= 500 && process.env.SENTRY_DSN) Sentry.captureException(err)
   const message =
     process.env.NODE_ENV === "production" ? "Internal server error" : err.message
   res.status(status).json({ detail: message })
@@ -185,8 +196,7 @@ const PORT = parseInt(process.env.PORT) || /* istanbul ignore next */ 3000
 const isMain = process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/\\/g, "/"))
 /* istanbul ignore next */
 if (isMain) {
-  // eslint-disable-next-line no-console
-  app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+  app.listen(PORT, () => logger.info({ port: PORT }, "Server running"))
 }
 
 export default app
