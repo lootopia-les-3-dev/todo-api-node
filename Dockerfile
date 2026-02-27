@@ -9,7 +9,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 COPY --from=deps --chown=appuser:appgroup /app/node_modules ./node_modules
-COPY --chown=appuser:appgroup app.js ./
+COPY --chown=appuser:appgroup app.js swagger.js logger.js ./
 COPY --chown=appuser:appgroup routes/ ./routes/
 COPY --chown=appuser:appgroup database/ ./database/
 USER appuser

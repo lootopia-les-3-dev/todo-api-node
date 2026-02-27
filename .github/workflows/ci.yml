@@ -279,6 +279,7 @@ jobs:
           driver: docker-container
           driver-opts: network=host
           buildkitd-flags: --allow-insecure-entitlement network.host
+          keep-state: true
       - name: Build and export image tar
         uses: docker/build-push-action@v6
         with:
