@@ -40,8 +40,8 @@ cp .env.example .env
 pnpm dev
 ```
 
-Le serveur écoute sur [http://localhost:3000](http://localhost:3000).
-La doc Swagger est disponible sur [http://localhost:3000/docs](http://localhost:3000/docs).
+Le serveur écoute sur `$FRONT_URL` (défaut : `http://localhost:3000`).
+La doc Swagger est disponible sur `$FRONT_URL/docs`.
 
 ### Variables d'environnement
 
@@ -51,6 +51,7 @@ La doc Swagger est disponible sur [http://localhost:3000/docs](http://localhost:
 | `NODE_ENV` | `development` | Environnement (`development` \| `production`) |
 | `DB_PATH` | `./todo.db` | Chemin vers le fichier SQLite |
 | `API_URL` | `http://localhost:3000` | URL de base affichée dans Swagger |
+| `FRONT_URL` | `http://localhost:3000` | URL publique de l'application |
 | `ALLOWED_ORIGIN` | `*` | Origine autorisée pour CORS |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Fenêtre du rate limiting en ms |
 | `RATE_LIMIT_MAX` | `100` | Nombre max de requêtes par fenêtre |

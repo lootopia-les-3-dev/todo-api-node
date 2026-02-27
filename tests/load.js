@@ -1,3 +1,4 @@
+/* global __ENV */
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 
@@ -7,7 +8,7 @@ export const options = {
 };
 
 export default function () {
-  const base = 'http://localhost:3000';
+  const base = __ENV.FRONT_URL || 'http://localhost:3000';
 
   const health = http.get(`${base}/health`);
   check(health, { 'health status 200': (r) => r.status === 200 });
