@@ -35,9 +35,9 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v5-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -68,9 +68,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v5-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -105,9 +105,9 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v5-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -164,9 +164,9 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v5-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -219,9 +219,9 @@ jobs:
           node-version: 20
       - name: Restore or install node_modules
         run: |
-          KEY="node-modules-v5-${{ hashFiles('pnpm-lock.yaml') }}"
+          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
