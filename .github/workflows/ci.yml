@@ -24,8 +24,6 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
-      - name: Configure pnpm store
-        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -38,6 +36,7 @@ jobs:
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -58,8 +57,6 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
-      - name: Configure pnpm store
-        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
@@ -72,6 +69,7 @@ jobs:
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -96,8 +94,6 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
-      - name: Configure pnpm store
-        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -110,6 +106,7 @@ jobs:
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -156,8 +153,6 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
-      - name: Configure pnpm store
-        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -170,6 +165,7 @@ jobs:
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
@@ -199,8 +195,6 @@ jobs:
         with:
           clean: false
       - uses: pnpm/action-setup@v4
-      - name: Configure pnpm store
-        run: pnpm config set store-dir "$PNPM_STORE_PATH"
       - uses: actions/setup-node@v6
         with:
           node-version: 20
@@ -213,6 +207,7 @@ jobs:
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
             rm -rf node_modules
+            pnpm config set store-dir "$PNPM_STORE_PATH"
             pnpm install --frozen-lockfile --prefer-offline
             mkdir -p "$CACHE_DIR"
             cp -a node_modules/. "$CACHE_DIR" || true
