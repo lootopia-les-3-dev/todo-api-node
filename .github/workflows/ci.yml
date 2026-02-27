@@ -84,6 +84,101 @@ jobs:
           fi
           "$CODECOV_BIN" upload-process -t "${{ secrets.CODECOV_TOKEN }}" -f coverage/lcov.info || true
 
+  contract:
+    runs-on: [self-hosted, dokploy-runner]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          clean: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            ln -sfn "$CACHE_DIR" node_modules
+          else
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Generate OpenAPI spec
+        run: node -e "import('./swagger.js').then(m => { const fs = await import('fs'); fs.writeFileSync('openapi.json', JSON.stringify(m.default, null, 2)) })" 2>/dev/null || node --input-type=module <<'EOF'
+          import spec from './swagger.js'
+          import { writeFileSync } from 'fs'
+          writeFileSync('openapi.json', JSON.stringify(spec, null, 2))
+          EOF
+      - name: Validate OpenAPI spec with Spectral
+        run: |
+          SPECTRAL_BIN=/tmp/runner-cache/spectral
+          if [ ! -f "$SPECTRAL_BIN" ]; then
+            npm install -g @stoplight/spectral-cli --prefix /tmp/runner-cache/spectral-pkg
+            ln -sf /tmp/runner-cache/spectral-pkg/bin/spectral "$SPECTRAL_BIN" || \
+              cp "$(npm bin -g --prefix /tmp/runner-cache/spectral-pkg)/spectral" "$SPECTRAL_BIN"
+          fi
+          "$SPECTRAL_BIN" lint openapi.json --ruleset @stoplight/spectral-oas || true
+          # Validate minimal structure: must have openapi, info, paths
+          node --input-type=module <<'EOF'
+            import { readFileSync } from 'fs'
+            const spec = JSON.parse(readFileSync('openapi.json', 'utf8'))
+            if (!spec.openapi) throw new Error('Missing openapi field')
+            if (!spec.info?.title) throw new Error('Missing info.title')
+            if (!spec.paths || Object.keys(spec.paths).length === 0) throw new Error('No paths defined')
+            const routes = Object.keys(spec.paths)
+            const required = ['/todos', '/health']
+            for (const r of required) {
+              if (!routes.some(p => p.startsWith(r))) throw new Error(`Missing route ${r} in spec`)
+            }
+            console.log(`OpenAPI spec valid — ${routes.length} paths, openapi: ${spec.openapi}`)
+          EOF
+
+  observability:
+    runs-on: [self-hosted, dokploy-runner]
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          clean: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+      - name: Restore or install node_modules
+        run: |
+          KEY="node-modules-v2-${{ hashFiles('pnpm-lock.yaml') }}"
+          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
+          if [ -f "$CACHE_DIR/.cache-ok" ]; then
+            ln -sfn "$CACHE_DIR" node_modules
+          else
+            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
+            rm -rf node_modules
+            pnpm install --frozen-lockfile --prefer-offline
+            mkdir -p "$CACHE_DIR"
+            cp -a node_modules/. "$CACHE_DIR" || true
+            touch "$CACHE_DIR/.cache-ok"
+          fi
+      - name: Start server
+        run: node app.js &
+        env:
+          PORT: 3001
+          NODE_ENV: production
+          DB_PATH: ./observability-test.db
+      - name: Wait for server
+        run: until curl -sf http://localhost:3001/health; do sleep 0.2; done
+      - name: Verify Prometheus metrics endpoint
+        run: |
+          METRICS=$(curl -sf http://localhost:3001/telemetry)
+          echo "$METRICS" | grep -q "http_requests_total" || (echo "FAIL: http_requests_total missing" && exit 1)
+          echo "$METRICS" | grep -q "http_request_duration_seconds" || (echo "FAIL: http_request_duration_seconds missing" && exit 1)
+          echo "$METRICS" | grep -q "process_cpu_seconds_total\|nodejs_" || (echo "FAIL: default node metrics missing" && exit 1)
+          echo "Observability OK — Prometheus endpoint exposes expected metrics"
+
   perf:
     runs-on: [self-hosted, dokploy-runner]
     continue-on-error: true
@@ -169,7 +264,7 @@ jobs:
 
   docker-push:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [docker-build, lint, test, security]
+    needs: [docker-build, lint, test, security, contract, observability]
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     permissions:
       contents: read
@@ -290,7 +385,7 @@ jobs:
 
   notify:
     runs-on: [self-hosted, dokploy-runner]
-    needs: [lint, test, security, docker-push]
+    needs: [lint, test, security, contract, observability, docker-push]
     if: always() && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
       - name: Determine status
@@ -299,6 +394,8 @@ jobs:
           if [[ "${{ needs.lint.result }}" == "success" && \
                 "${{ needs.test.result }}" == "success" && \
                 "${{ needs.security.result }}" == "success" && \
+                "${{ needs.contract.result }}" == "success" && \
+                "${{ needs.observability.result }}" == "success" && \
                 "${{ needs.docker-push.result }}" == "success" ]]; then
             echo "color=5763719" >> $GITHUB_OUTPUT
             echo "label=succes" >> $GITHUB_OUTPUT
@@ -315,7 +412,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"CI ${{ steps.status.outputs.label }} — ${{ github.ref_name }}\",
-                \"description\": \"Commit \`$SHORT_SHA\` par **${{ github.actor }}**\nlint: ${{ needs.lint.result }} | test: ${{ needs.test.result }} | security: ${{ needs.security.result }} | push: ${{ needs.docker-push.result }}\",
+                \"description\": \"Commit \`$SHORT_SHA\` par **${{ github.actor }}**\nlint: ${{ needs.lint.result }} | test: ${{ needs.test.result }} | security: ${{ needs.security.result }} | contract: ${{ needs.contract.result }} | observability: ${{ needs.observability.result }} | push: ${{ needs.docker-push.result }}\",
                 \"color\": ${{ steps.status.outputs.color }},
                 \"url\": \"https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}\"
               }]
