@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.1.1](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.1.0...v1.1.1) (2026-02-27)
+
+
+### Bug Fixes
+
+* expert ci ([#42](https://github.com/lootopia-les-3-dev/todo-api-node/issues/42)) ([e06e2df](https://github.com/lootopia-les-3-dev/todo-api-node/commit/e06e2dffff2cbbcb687c8e4d20e8a26d37783685))
+* fast ci ([#46](https://github.com/lootopia-les-3-dev/todo-api-node/issues/46)) ([df35dac](https://github.com/lootopia-les-3-dev/todo-api-node/commit/df35dac5dfa274518a1a7e908daa8550f5a38ce4))
+* improve health check logic in reusable deploy workflow ([0aaecb6](https://github.com/lootopia-les-3-dev/todo-api-node/commit/0aaecb637af88ae90e0f1ea41842b4329cae23d5))
+* simplify node_modules installation in CI workflow ([605cd3e](https://github.com/lootopia-les-3-dev/todo-api-node/commit/605cd3e2731065dcbd6bb438f12aeef3b6ef5f66))
+
 ## [1.1.0](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.0.4...v1.1.0) (2026-02-25)
 
 
