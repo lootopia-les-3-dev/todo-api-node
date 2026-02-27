@@ -8,6 +8,7 @@ import rateLimit from "express-rate-limit"
 import swaggerUi from "swagger-ui-express"
 import swaggerSpec from "./swagger.js"
 import todoRouter from "./routes/todo.js"
+import { register, httpRequestCounter, httpRequestDuration } from "./routes/telemetry.js"
 import * as Sentry from "@sentry/node"
 
 Sentry.init({ dsn: process.env.SENTRY_DSN })
