@@ -55,7 +55,7 @@ jobs:
           curl -X POST "${{ secrets.DEPLOY_HOOK }}"
 
       - name: Wait for environment to be up
-        run: sleep 20
+        run: sleep 5
 
       - name: Smoke test — health
         run: curl -sf "${{ secrets.HEALTH_URL }}/health" | grep -q '"ok"'

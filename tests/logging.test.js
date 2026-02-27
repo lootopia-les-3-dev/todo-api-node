@@ -4,6 +4,7 @@ import app from "../app.js"
 
 process.env.NODE_ENV = "test"
 process.env.DB_PATH = ":memory-test:"
+// FEATURE_TODO_SEARCH intentionally NOT set — covers the disabled flag branch
 
 describe("Structured logging (pino-http)", () => {
   it("attaches req.log (pino logger) to every request", async () => {
@@ -25,5 +26,12 @@ describe("Structured logging (pino-http)", () => {
     const res = await request(app).get("/telemetry")
     expect(res.status).toBe(200)
     expect(res.headers["content-type"]).toMatch(/text\/plain/)
+  })
+})
+
+describe("Feature flags", () => {
+  it("returns 404 for /todos/search when FEATURE_TODO_SEARCH is disabled", async () => {
+    const res = await request(app).get("/todos/search?q=test")
+    expect(res.status).toBe(404)
   })
 })

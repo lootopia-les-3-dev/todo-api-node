@@ -5,6 +5,7 @@ import { jest, describe, it, expect } from "@jest/globals"
 
 process.env.NODE_ENV = "test"
 process.env.DB_PATH = ":memory-test:"
+process.env.FEATURE_TODO_SEARCH = "true"
 
 jest.unstable_mockModule("../database/database.js", () => ({
   getDb: jest.fn(() => { throw new Error("db error") }),
