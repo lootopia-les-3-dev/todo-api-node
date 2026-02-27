@@ -37,7 +37,7 @@ jobs:
         run: |
           KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -f "$CACHE_DIR/@sentry/node/build/cjs/index.js" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -66,21 +66,10 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Restore or install node_modules
+      - name: Install node_modules
         run: |
-          KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}-node${{ matrix.node-version }}"
-          CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
-            ln -sfn "$CACHE_DIR" node_modules
-          else
-            chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
-            rm -rf node_modules
-            pnpm config set store-dir "$PNPM_STORE_PATH"
-            pnpm install --frozen-lockfile --prefer-offline
-            mkdir -p "$CACHE_DIR"
-            cp -a node_modules/. "$CACHE_DIR" || true
-            touch "$CACHE_DIR/.cache-ok"
-          fi
+          pnpm config set store-dir "$PNPM_STORE_PATH"
+          pnpm install --frozen-lockfile --prefer-offline
       - name: Run tests
         run: NODE_OPTIONS=--experimental-vm-modules pnpm exec jest --coverage --coverageReporters=lcov --coverageThreshold='{}' --runInBand --cacheDirectory=/tmp/runner-cache/jest-cache-node${{ matrix.node-version }} --forceExit --detectOpenHandles
       - name: Upload to Codecov
@@ -107,7 +96,7 @@ jobs:
         run: |
           KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -f "$CACHE_DIR/@sentry/node/build/cjs/index.js" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -166,7 +155,7 @@ jobs:
         run: |
           KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -f "$CACHE_DIR/@sentry/node/build/cjs/index.js" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
@@ -221,7 +210,7 @@ jobs:
         run: |
           KEY="node-modules-v6-${{ hashFiles('pnpm-lock.yaml') }}"
           CACHE_DIR="$NODE_MODULES_CACHE/$KEY"
-          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -d "$CACHE_DIR/@sentry" ]; then
+          if [ -f "$CACHE_DIR/.cache-ok" ] && [ -f "$CACHE_DIR/@sentry/node/build/cjs/index.js" ]; then
             ln -sfn "$CACHE_DIR" node_modules
           else
             chmod -R u+w "$CACHE_DIR" 2>/dev/null || true && rm -rf "$CACHE_DIR"
