@@ -4,6 +4,7 @@ import app from "../app.js"
 
 process.env.NODE_ENV = "test"
 process.env.DB_PATH = ":memory-test:"
+process.env.FEATURE_TODO_SEARCH = "true"
 
 describe("Todo API", () => {
   describe("GET /health", () => {
