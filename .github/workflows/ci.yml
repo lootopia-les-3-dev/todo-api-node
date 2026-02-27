@@ -218,8 +218,6 @@ jobs:
           scan-type: fs
           scan-ref: .
           severity: CRITICAL,HIGH
-          skip-db-update: true
-          skip-java-db-update: true
         env:
           TRIVY_CACHE_DIR: ${{ env.TRIVY_CACHE }}
 

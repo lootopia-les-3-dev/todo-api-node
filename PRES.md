@@ -1,12 +1,5 @@
 # Guide de présentation — CI/CD Todo API
 
-## Vue d'ensemble à pitcher en 30 secondes
-
-> "On a une API REST Node.js avec une pipeline CI/CD complète sur GitHub Actions,
-> déployée automatiquement en staging et production via Dokploy/Render,
-> avec tests multi-version, observabilité Prometheus+Pino, sécurité Trivy,
-> tests de charge k6, et rollback automatique."
-
 ---
 
 ## 1. Architecture globale
@@ -68,7 +61,7 @@ router.get("/search", async (req, res, next) => {
 })
 ```
 
-**Le flag est réel** : pas un commentaire, pas du semblant.
+**Le flag est fonctionnel**
 - `FEATURE_TODO_SEARCH` non défini → 404 (testé dans `logging.test.js`)
 - `FEATURE_TODO_SEARCH=true` → endpoint actif (testé dans `todo.test.js`)
 
@@ -79,6 +72,7 @@ router.get("/search", async (req, res, next) => {
 ### 4a. Métriques Prometheus
 
 **Montrer** : `GET https://todo.lootopia.io/telemetry`
+**goal** : [https://prometheus.lootopia.io/targets](https://prometheus.lootopia.io/targets)
 
 ```bash
 curl https://todo.lootopia.io/telemetry
@@ -202,6 +196,21 @@ Sur `main` : `release-please-action` génère automatiquement un PR de release a
 
 **"C'est quoi le feature flag ?"**
 → `FEATURE_TODO_SEARCH` active/désactive l'endpoint `/todos/search`. Sans la variable, le endpoint retourne 404. C'est testé dans les deux états.
+
+
+Peux tu nous expliquer l'intérêt de cette stack d'Observabilité ?
+
+Prometheus → "Combien ?"
+C'est un système de collecte de métriques numériques. Il scrape ton endpoint /telemetry à intervalles réguliers et stocke des séries temporelles.
+
+Pino → "Quoi ?"
+C'est du logging structuré en JSON. Là où Prometheus te donne des chiffres, Pino te donne le détail de chaque événement. Le X-Request-ID est la clé : il te permet de retrouver tous les logs d'une requête précise parmi des milliers, et de reconstituer son parcours complet dans ton système.
+
+Sentry → "Pourquoi ?"
+C'est le seul des trois qui capture le contexte d'une erreur au moment où elle se produit : stacktrace complète, valeurs des variables, environnement, utilisateur concerné. C'est Sentry qui te donnera la ligne exacte dans ton code qui a planté et pourquoi.
+
+Le workflow en pratique sur Lootopia :
+Prometheus te réveille à 3h du matin (alerte Grafana : taux d'erreur > 5%). Tu ouvres Sentry qui t'affiche la stacktrace de l'exception. Tu utilises le X-Request-ID de Sentry pour retrouver dans Pino les logs de cette requête et comprendre le contexte exact qui a mené au crash.
 
 ---
 
