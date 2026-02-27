@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.1.1...v1.1.2) (2026-02-27)
+
+
+### Bug Fixes
+
+* rm useless docker-compose ([#58](https://github.com/lootopia-les-3-dev/todo-api-node/issues/58)) ([23f24b2](https://github.com/lootopia-les-3-dev/todo-api-node/commit/23f24b27edec92e231f10ce1ae445381889da248))
+
 ## [1.1.1](https://github.com/lootopia-les-3-dev/todo-api-node/compare/v1.1.0...v1.1.1) (2026-02-27)
 
 
